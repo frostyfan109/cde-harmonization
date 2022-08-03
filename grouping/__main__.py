@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import logging
     from . import *
 
-    parser = argparse.ArgumentParser(description="Generate categorical groupings on CDE fields")
+    parser = argparse.ArgumentParser(description="Generate categorical groupings on CDE data dictionaries")
     parser.add_argument(
         "cde_file",
         type=str,
@@ -19,8 +19,15 @@ if __name__ == "__main__":
         "--categorizer",
         default="concept_analyzer",
         type=str,
-        choices=["concept_analyzer"],
+        choices=["concept_analyzer", "rake_analyzer", "keybert_analyzer"],
         help="Categorization algorithm to employ in the grouping of CDE fields"
+    )
+    parser.add_argument(
+        "-f",
+        "--field",
+        default=None,
+        action="append",
+        help="Only these specified columns will be used by the categorization algorithm"
     )
     logging_group = parser.add_mutually_exclusive_group()
     logging_group.add_argument(
@@ -41,6 +48,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cde_file = args.cde_file
     output_path = args.output_path
+    fields = list(set(args.field)) if args.field is not None else ["description"]
     categorizer_name = args.categorizer
     verbose = args.verbose
     quiet = args.quiet
@@ -59,7 +67,11 @@ if __name__ == "__main__":
 
     categorizer = None
     if categorizer_name == "concept_analyzer":
-        categorizer = ConceptualAnalysisCategorizer()
+        categorizer = ConceptualAnalysisCategorizer(fields)
+    elif categorizer_name == "rake_analyzer":
+        categorizer = RakeKeywordCategorizer(fields)
+    elif categorizer_name == "keybert_analyzer":
+        categorizer = KeyBERTCategorizer(fields)
     
     grouped_cde = categorizer.categorize_cde(cde)
     cde_loader.save(grouped_cde, output_path)

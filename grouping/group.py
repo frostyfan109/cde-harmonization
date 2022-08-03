@@ -58,7 +58,9 @@ class KeyBERTCategorizer(Categorizer):
         self.vectorizer = KeyphraseCountVectorizer()
     def categorize_field(self, cde_row: Dict) -> List[str]:
         docs = [cde_row[field] for field in self.fields]
-        return [keyphrase for (keyphrase, score) in self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer)]
+        try:
+            return [keyphrase for (keyphrase, score) in self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer)]
+        except: return []
 
 class ConceptualAnalysisCategorizer(Categorizer):
     def categorize_field(self, cde_row: Dict) -> List[str]:

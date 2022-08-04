@@ -1,14 +1,13 @@
 import logging
 import string
 import re
+import spacy
 from copy import deepcopy
 from abc import ABC, abstractmethod
 from typing import List, Dict
 from rake_nltk import Rake
 from keyphrase_vectorizers import KeyphraseCountVectorizer
 from keybert import KeyBERT
-
-logger = logging.getLogger(__name__)
 
 CDE = List[Dict]
 
@@ -19,28 +18,31 @@ class Categorizer(ABC):
             **options
         )
         self.fields = fields
+        
+        self.nlp = spacy.load("en_core_web_sm")
+
+        self.logger = logging.getLogger(self.__class__.__name__)
     
     @abstractmethod
     def categorize_field(self, cde_row: Dict) -> List[str]:
         ...
     
+    """ Text normalization of categories """
     def normalize(self, category: str) -> str:
-        # Remove punctuation
-        category = category.translate(str.maketrans("", "", string.punctuation))
-        # Remove double spaces
-        category = re.sub(" +", " ", category)
-        # Strip string
-        category = category.strip()
-        return category
-        
+        doc = self.nlp(category)
+        lemma = [token.lemma_ for token in doc]
+        return " ".join([word for word in lemma if self.nlp.vocab[word].is_stop == False and not word in string.punctuation])
+
     def categorize_cde(self, cde: CDE) -> CDE:
-        logger.info(f"Categorizing CDE fields using {self.__class__.__name__} using fields {self.fields}")
+        self.logger.info(f"Categorizing CDE fields using {self.__class__.__name__} using fields {self.fields}")
         category_field_name = self.options["field_name"]
         rows = deepcopy(cde)
         for i, field in enumerate(rows):
-            categories = [self.normalize(category) for category in self.categorize_field(field)]
+            categories = list(set([
+                self.normalize(category) for category in self.categorize_field(field)
+            ]))
             field[category_field_name] = categories
-            logger.debug(f"[{i + 1}/{len(rows)}] Categorized field under {categories}")
+            self.logger.debug(f"[{i + 1}/{len(rows)}] Categorized field under {categories}")
         return rows
 
 
@@ -58,9 +60,13 @@ class KeyBERTCategorizer(Categorizer):
         self.vectorizer = KeyphraseCountVectorizer()
     def categorize_field(self, cde_row: Dict) -> List[str]:
         docs = [cde_row[field] for field in self.fields]
+        keyphrases = []
         try:
-            return [keyphrase for (keyphrase, score) in self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer)]
-        except: return []
+            for processed_doc in self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer):
+                keyphrases += [keyphrase for (keyphrase, score) in processed_doc]
+        except Exception as e:
+            self.logger.error(f"Failed to process fields: {docs}")
+        return keyphrases
 
 class ConceptualAnalysisCategorizer(Categorizer):
     def categorize_field(self, cde_row: Dict) -> List[str]:

@@ -3,3 +3,4 @@ click==7.1.2
 rake-nltk==1.0.6
 keybert==0.6.0
 keyphrase-vectorizers==0.0.10
+spacy==3.4.1

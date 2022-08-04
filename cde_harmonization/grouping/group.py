@@ -15,6 +15,7 @@ class Categorizer(ABC):
     def __init__(self, fields, options={}):
         self.options = dict(
             field_name="categories",
+            score_threshold=0,
             **options
         )
         self.fields = fields
@@ -60,10 +61,11 @@ class KeyBERTCategorizer(Categorizer):
         self.vectorizer = KeyphraseCountVectorizer()
     def categorize_field(self, cde_row: Dict) -> List[str]:
         docs = [cde_row[field] for field in self.fields]
+        minimum_score = self.options["score_threshold"]
         keyphrases = []
         try:
             for processed_doc in self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer):
-                keyphrases += [keyphrase for (keyphrase, score) in processed_doc]
+                keyphrases += [keyphrase for (keyphrase, score) in processed_doc if score >= minimum_score]
         except Exception as e:
             self.logger.error(f"Failed to process fields: {docs}")
         return keyphrases

@@ -38,12 +38,13 @@ def categorize(args):
 def visualize_categories(args):
     import grouping
     cde_file = args.cde_file
+    export_gexf = args.output_gexf
 
     cde_loader = CDELoader(options={
         "csv_parse_lists": ["categories"]
     })
     cde = cde_loader.load(cde_file)
-    grouping.visualize_cde(cde)
+    grouping.visualize_cde(cde, export_gexf=export_gexf)
 
 def make_categorize_parser(parser):
     parser.set_defaults(func=categorize)
@@ -101,6 +102,13 @@ def make_visualization_parser(parser):
         "cde_file",
         type=str,
         help="File path to categorized CDE"
+    )
+    parser.add_argument(
+        "-o",
+        "--output_gexf",
+        type=str,
+        default=None,
+        help="File path to export the graph as a GEXF file"
     )
     return parser
 

@@ -36,17 +36,21 @@ function App() {
   console.log(permissibleCategories)
   const filteredGraph = useMemo(() => {
     if (!graph) return null
-    const net = JSON.parse(JSON.stringify(graph))
+    const net = {
+      nodes: graph.nodes.map((n) => ({ ...n })),
+      edges: graph.edges.map((e) => ({ ...e }))
+    }
     selectedCategories.forEach((category) => {
       const n = net.nodes.find((n) => n.id === category)
-      // n.color = '#ff0000'
-      // n.size *= 2
+      n.color = '#ff0000'
+      n.size *= 2
     })
-    net.nodes = net.nodes.filter((node) => node.type !== 'category' || permissibleCategories.includes(node.id))
+    net.nodes = net.nodes.filter((node) => node.type !== 'category' || selectedCategories.includes(node.id))
     net.nodes = net.nodes.filter((node) => {
       if (node.type === 'category') return true
-      const isConnectedToSelectedCategory = net.edges.filter((e) => selectedCategories.includes(e.from) && e.to === node.id).length > 0
-      return isConnectedToSelectedCategory
+      return selectedCategories.every((category) => !!net.edges.find((e) => e.from === category && e.to === node.id))
+      // const isConnectedToSelectedCategory = net.edges.filter((e) => selectedCategories.includes(e.from) && e.to === node.id).length > 0
+      // return isConnectedToSelectedCategory
     })
     // Remove edges referencing pruned nodes
     net.edges = net.edges.filter((edge) => (

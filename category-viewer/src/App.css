@@ -18,3 +18,22 @@
 .upload-cde-button, .upload-cde-button > * {
   width: 100%;
 }
+
+.node-field-tooltip {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+}
+.node-field-tooltip .category-tag-container {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.category-tag-container > * {
+  margin: 0 !important;
+}

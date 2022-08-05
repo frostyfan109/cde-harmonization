@@ -1,3 +1,4 @@
+""" Create categorical tags on each CDE to assist in similarity analysis """
 import logging
 import string
 import re
@@ -12,12 +13,13 @@ from keybert import KeyBERT
 CDE = List[Dict]
 
 class Categorizer(ABC):
-    def __init__(self, fields, options={}):
-        self.options = dict(
-            field_name="categories",
-            score_threshold=0,
+    def __init__(self, fields: List[str], options={}):
+        self.options = {
+            # Column name that categories are stored under in the CDE
+            "field_name": "categories",
+            "score_threshold": 0,
             **options
-        )
+        }
         self.fields = fields
         
         self.nlp = spacy.load("en_core_web_sm")

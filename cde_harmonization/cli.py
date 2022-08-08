@@ -3,7 +3,7 @@ import logging
 from utils import CDELoader
 
 def categorize(args):
-    from grouping import categorizer
+    from grouping.categorizer import SciGraphAnnotationCategorizer, RakeKeywordCategorizer, KeyBERTCategorizer
 
     cde_file = args.cde_file
     output_path = args.output_path
@@ -25,12 +25,12 @@ def categorize(args):
     cde = cde_loader.load(cde_file)
 
     categorizer = None
-    if categorizer_name == "concept_analyzer":
-        categorizer = categorizer.ConceptualAnalysisCategorizer(fields)
+    if categorizer_name == "scigraph_analyzer":
+        categorizer = SciGraphAnnotationCategorizer(fields)
     elif categorizer_name == "rake_analyzer":
-        categorizer = categorizer.RakeKeywordCategorizer(fields)
+        categorizer = RakeKeywordCategorizer(fields)
     elif categorizer_name == "keybert_analyzer":
-        categorizer = categorizer.KeyBERTCategorizer(fields)
+        categorizer = KeyBERTCategorizer(fields)
     
     grouped_cde = categorizer.categorize_cde(cde)
     cde_loader.save(grouped_cde, output_path)
@@ -79,7 +79,7 @@ def make_categorize_parser(parser):
         "-c",
         "--categorizer",
         type=str,
-        choices=["concept_analyzer", "rake_analyzer", "keybert_analyzer"],
+        choices=["scigraph_analyzer", "rake_analyzer", "keybert_analyzer"],
         help="Categorization algorithm to employ in the grouping of CDE fields"
     )
     parser.add_argument(

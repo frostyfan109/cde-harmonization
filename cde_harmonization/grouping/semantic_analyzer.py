@@ -1,4 +1,5 @@
 """ Semantically analyze the similarity of CDE questions based on their categorical groupings """
+import logging
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, NamedTuple
 
@@ -22,6 +23,8 @@ class SemanticAnalyzer(ABC):
         }
         self.fields = fields
 
+        self.logger = logging.getLogger(self.__class__.__name__)
+
     def find_grouping(self, categories: List[str], groupings: List[Grouping]) -> Optional[Grouping]:
         grouping_method = self.options["grouping_method"]
         for grouping in groupings:
@@ -36,6 +39,8 @@ class SemanticAnalyzer(ABC):
 
     def find_groupings(self, cde: CDE) -> List[Grouping]:
         category_field_name = self.options["field_name"]
+        grouping_method = self.options["grouping_method"]
+        self.logger.info(f"Finding CDE groupings using method '{grouping_method}'")
         groupings = []
         for field in cde:
             categories = field[category_field_name]
@@ -43,14 +48,14 @@ class SemanticAnalyzer(ABC):
             if grouping is None:
                 grouping = Grouping(categories, [])
                 groupings.append(grouping)
+                self.logger.debug(f"Creating new grouping")
+            self.logger.debug(f"Adding field to grouping")
             grouping.fields.append(field)
         groupings = [grouping for grouping in groupings if len(grouping.fields) > 1]
+        self.logger.debug(f"Average fields per grouping: {sum([len(grouping.fields) for grouping in groupings]) / len(groupings)}")
         return groupings
 
     def analyze_cde(self, cde: CDE):
         groupings = self.find_groupings(cde)
-        print(len(groupings))
-        for grouping in groupings[:5]:
-            print(grouping.categories)
-            print([field["variable_name"] for field in grouping.fields])
-            print()
+        self.logger.info(f"Running analysis on {len(groupings)} groupings")
+        

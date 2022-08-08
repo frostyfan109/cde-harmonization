@@ -3,6 +3,7 @@ import logging
 import string
 import re
 import spacy
+import requests
 from copy import deepcopy
 from abc import ABC, abstractmethod
 from typing import List, Dict
@@ -37,7 +38,7 @@ class Categorizer(ABC):
         return " ".join([word for word in lemma if self.nlp.vocab[word].is_stop == False and not word in string.punctuation])
 
     def categorize_cde(self, cde: CDE) -> CDE:
-        self.logger.info(f"Categorizing CDE fields using {self.__class__.__name__} using fields {self.fields}")
+        self.logger.info(f"Categorizing CDE fields using fields {self.fields}")
         category_field_name = self.options["field_name"]
         rows = deepcopy(cde)
         for i, field in enumerate(rows):
@@ -48,7 +49,7 @@ class Categorizer(ABC):
             self.logger.debug(f"[{i + 1}/{len(rows)}] Categorized field under {categories}")
         return rows
 
-
+""" Categorize fields using keyword extraction via RAKE """
 class RakeKeywordCategorizer(Categorizer):
     def categorize_field(self, cde_row: Dict) -> List[str]:
         r = Rake()
@@ -56,6 +57,7 @@ class RakeKeywordCategorizer(Categorizer):
             r.extract_keywords_from_text(cde_row[field])
         return r.get_ranked_phrases()
 
+""" Categorize fields using keyword extraction via KeyBERT """
 class KeyBERTCategorizer(Categorizer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -72,6 +74,23 @@ class KeyBERTCategorizer(Categorizer):
             self.logger.error(f"Failed to process fields: {docs}")
         return keyphrases
 
-class ConceptualAnalysisCategorizer(Categorizer):
+""" Categorize fields using NER via Monarch SciGraph annotator """
+class SciGraphAnnotationCategorizer(Categorizer):
+    SCIGRAPH_ANNOTATION_URL = "https://api.monarchinitiative.org/api/nlp/annotate/entities"
     def categorize_field(self, cde_row: Dict) -> List[str]:
-        return []
+        doc = ". ".join([cde_row[field] for field in self.fields])
+        res = requests.post(self.SCIGRAPH_ANNOTATION_URL, {
+            "content": doc,
+            "min_length": 0,
+            "include_abbreviation": False,
+            "include_acronym": False,
+            "include_numbers": False
+        })
+        data = res.json()["spans"]
+        ner_annotations = []
+        for ner_token in data:
+            tokens = ner_token["token"]
+            for token in tokens:
+                curie = token["id"]
+                ner_annotations.append(curie)
+        return ner_annotations

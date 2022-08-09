@@ -40,13 +40,22 @@ class Categorizer(ABC):
     def categorize_cde(self, cde: CDE) -> CDE:
         self.logger.info(f"Categorizing CDE fields using fields {self.fields}")
         category_field_name = self.options["field_name"]
+        errors = []
         rows = deepcopy(cde)
         for i, field in enumerate(rows):
-            categories = list(set([
-                self.normalize(category) for category in self.categorize_field(field)
-            ]))
-            field[category_field_name] = categories
-            self.logger.debug(f"[{i + 1}/{len(rows)}] Categorized field under {categories}")
+            try:
+                categories = list(set([
+                    self.normalize(category) for category in self.categorize_field(field)
+                ]))
+                field[category_field_name] = categories
+                self.logger.debug(f"[{i + 1}/{len(rows)}] Categorized field under {categories}")
+            except Exception as exc:
+                errors.append((field, exc))
+                self.logger.error(f"[{i + 1}/{len(rows)}] Failed to categorize field")
+        if len(errors) > 0:
+            self.logger.error(f"Encountered the following {len(errors)} errors:")
+            for error in errors:
+                self.logger.error(f"{error}\n{field}")
         return rows
 
 """ Categorize fields using keyword extraction via RAKE """

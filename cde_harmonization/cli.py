@@ -9,6 +9,7 @@ def categorize(args):
     output_path = args.output_path
     fields = list(set(args.field)) if args.field is not None else ["description"]
     categorizer_name = args.categorizer
+    score_threshold = args.score_threshold
     verbose = args.verbose
     quiet = args.quiet
 
@@ -25,22 +26,27 @@ def categorize(args):
     cde = cde_loader.load(cde_file)
 
     categorizer = None
-    if categorizer_name == "scigraph_analyzer":
-        categorizer = SciGraphAnnotationCategorizer(fields)
-    elif categorizer_name == "rake_analyzer":
-        categorizer = RakeKeywordCategorizer(fields)
-    elif categorizer_name == "keybert_analyzer":
-        categorizer = KeyBERTCategorizer(fields)
+    options = {
+        "score_threshold": score_threshold
+    }
+    if categorizer_name == "scigraph":
+        categorizer = SciGraphAnnotationCategorizer(fields, options)
+    elif categorizer_name == "rake":
+        categorizer = RakeKeywordCategorizer(fields, options)
+    elif categorizer_name == "keybert":
+        categorizer = KeyBERTCategorizer(fields, options)
     
     grouped_cde = categorizer.categorize_cde(cde)
     cde_loader.save(grouped_cde, output_path)
 
 def analyze(args):
-    from grouping import semantic_analyzer
+    from grouping.semantic_analyzer import USE4Analyzer
 
     cde_file = args.cde_file
     output_path = args.output_path
     fields = list(set(args.field)) if args.field is not None else ["description"]
+    grouping_method = args.grouping_method
+    similarity_threshold = args.similarity_threshold
     analyzer_name = args.analyzer
     verbose = args.verbose
     quiet = args.quiet
@@ -59,9 +65,17 @@ def analyze(args):
     })
     cde = cde_loader.load(cde_file)
 
-    analyzer = semantic_analyzer.SemanticAnalyzer(fields)
+    options = {
+        "min_score": similarity_threshold,
+        "grouping_method": grouping_method
+    }
+    if analyzer_name == "use4":
+        analyzer = USE4Analyzer(fields, options)
 
-    analyzer.analyze_cde(cde)
+    highly_related_fields = analyzer.analyze_cde(cde)
+    import json
+    with open(output_path, "w+") as f:
+        json.dump(highly_related_fields, f)
 
 def make_categorize_parser(parser):
     parser.set_defaults(func=categorize)
@@ -79,7 +93,8 @@ def make_categorize_parser(parser):
         "-c",
         "--categorizer",
         type=str,
-        choices=["scigraph_analyzer", "rake_analyzer", "keybert_analyzer"],
+        required=True,
+        choices=["scigraph", "rake", "keybert"],
         help="Categorization algorithm to employ in the grouping of CDE fields"
     )
     parser.add_argument(
@@ -129,8 +144,19 @@ def make_analyzer_parser(parser):
         "-a",
         "--analyzer",
         type=str,
-        choices=[],
+        required=True,
+        choices=["use4"],
         help="Semantic analysis algorithm to employ in the analysis of categorical groupings"
+    )
+    parser.add_argument(
+        "-g",
+        "--grouping_method",
+        type=str,
+        required=True,
+        choices=["equivalence", "intersection"],
+        help="Method of clustering categorized cdes for analysis." \
+            " Equivalence requires groups to share identical sets of categories," \
+            " while intersection only requires groups to have intersecting sets of categories"
     )
     parser.add_argument(
         "-f",
@@ -138,6 +164,13 @@ def make_analyzer_parser(parser):
         default=None,
         action="append",
         help="Only these specified columns will be used for semantic analysis"
+    )
+    parser.add_argument(
+        "-s",
+        "--similarity_threshold",
+        default=0.5,
+        type=float,
+        help="Minimum semantic similarity of two CDE questions to be deemed significantly similar"
     )
     logging_group = parser.add_mutually_exclusive_group()
     logging_group.add_argument(

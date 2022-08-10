@@ -73,9 +73,13 @@ def analyze(args):
         analyzer = USE4Analyzer(fields, options)
 
     highly_related_fields = analyzer.analyze_cde(cde)
-    import json
+    ungrouped_related_fields = []
     with open(output_path, "w+") as f:
-        json.dump(highly_related_fields, f)
+        for i, group in enumerate(highly_related_fields):
+            for field in group:
+                field["related_group"] = f"group{i}"
+            ungrouped_related_fields += group
+        cde_loader.save(ungrouped_related_fields, output_path)
 
 def make_categorize_parser(parser):
     parser.set_defaults(func=categorize)

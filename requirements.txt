@@ -5,5 +5,7 @@ keybert==0.6.0
 keyphrase-vectorizers==0.0.10
 spacy==3.4.1
 networkx==2.5.1
-sent2vec==0.3.0
 requests==2.22.0
+tensorflow==2.9.1
+networkx==2.5.1
+git+https://github.com/epfml/sent2vec.git

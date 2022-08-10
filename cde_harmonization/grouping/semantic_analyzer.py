@@ -24,7 +24,7 @@ class SemanticAnalyzer(ABC):
             # - "equivalence" requires fields to have identical sets of categories
             # - "intersection" simply requires the sets of categories to intersect
             # "equivalence" will run in significantly less time than "intersection"
-            "grouping_method": "equivalence",
+            "grouping_method": "intersection",
             # Minimum score of similarity (scoring mechanism varies by implementation)
             "min_score": 0.5,
             **options

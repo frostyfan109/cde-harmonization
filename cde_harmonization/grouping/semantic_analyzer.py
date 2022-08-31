@@ -33,6 +33,7 @@ class SemanticAnalyzer(ABC):
             "grouping_method": "intersection",
             # Minimum score of similarity (scoring mechanism varies by implementation)
             "min_score": 0.5,
+            "id": "Digest (variable_name|source_file|source_directory)",
             **options
         }
         self.fields = fields
@@ -43,17 +44,16 @@ class SemanticAnalyzer(ABC):
     def semantic_similarity(self, sentence1: str, sentence2: str) -> float:
         """ Returns a float between 0 and 1 indicating the semantic similarity of the two CDE questions. """
 
-    @staticmethod
-    def regroup_pairings(pairings: List[Tuple[Dict, Dict]]) -> List[List[Dict]]:
+    def regroup_pairings(self, pairings: List[Tuple[Dict, Dict, float]]) -> List[List[Dict]]:
         """
         Need to take pairings of similary CDEs and group them with other pairings that share elements in common.
         If f1 and f2 are semantically similar, and so are f2 and f3, then f1 and f3 are also transitively similar.
         """
         G = nx.Graph()
-        for (field1, field2) in pairings:
+        for (field1, field2, score) in pairings:
             # Ideally there'd be a column to uniquely identify a field, but this does not exist yet. 
-            f1_id = f"{field1['variable_name']}-{field1['description']}-{field1['label']}-{field1['value_constraints']}"
-            f2_id = f"{field2['variable_name']}-{field2['description']}-{field2['label']}-{field2['value_constraints']}"
+            f1_id = field1[self.options["id"]]
+            f2_id = field2[self.options["id"]]
             G.add_node(
                 f1_id,
                 data=field1
@@ -62,8 +62,24 @@ class SemanticAnalyzer(ABC):
                 f2_id,
                 data=field2
             )
-            G.add_edge(f1_id, f2_id)
-        regrouped = [[G.nodes[node]["data"] for node in node_group] for node_group in nx.connected_components(G)]
+            G.add_edge(f1_id, f2_id, score=score)
+        regrouped = [
+            [
+                {
+                    **G.nodes[node]["data"],
+                    "related_group": f"group{i}",
+                    "matches": {
+                        # Take the last 5 characters of the id hash for node matches within the group.
+                        # Score rounded to hundreths place.
+                        G.nodes[n2]["data"][self.options["id"]][-6:] : round(G[node][n2]["score"] * 100) / 100
+                        for n2 in node_group
+                        if G.has_edge(node, n2)
+                    }
+                }
+                for node in node_group
+            ]
+            for i, node_group in enumerate(list(nx.connected_components(G)))
+        ]
         return regrouped
 
     def find_grouping(self, categories: List[str], groupings: List[Grouping]) -> Optional[Grouping]:
@@ -148,7 +164,7 @@ class SemanticAnalyzer(ABC):
                     f"Scored CDE {field1['variable_name']} {field2['variable_name']} {similarity}{ ' (discarded)' if similarity < min_score else '' }"
                 )
                 if similarity >= min_score:
-                    fields_of_interest.append((field1, field2))
+                    fields_of_interest.append((field1, field2, similarity))
                 iteration += 1
         return self.regroup_pairings(fields_of_interest)
 

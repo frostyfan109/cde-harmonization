@@ -48,6 +48,7 @@ def analyze(args):
     grouping_method = args.grouping_method
     similarity_threshold = args.similarity_threshold
     analyzer_name = args.analyzer
+    id_field = args.id_field
     verbose = args.verbose
     quiet = args.quiet
 
@@ -67,12 +68,14 @@ def analyze(args):
 
     options = {
         "min_score": similarity_threshold,
-        "grouping_method": grouping_method
+        "grouping_method": grouping_method,
+        "id": id_field
     }
     if analyzer_name == "use4":
         analyzer = USE4Analyzer(fields, options)
 
     highly_related_fields = analyzer.analyze_cde(cde)
+    # Flatten groups
     ungrouped_related_fields = []
     with open(output_path, "w+") as f:
         for i, group in enumerate(highly_related_fields):
@@ -168,6 +171,13 @@ def make_analyzer_parser(parser):
         default=None,
         action="append",
         help="Only these specified columns will be used for semantic analysis"
+    )
+    parser.add_argument(
+        "-i",
+        "--id_field",
+        default="Digest (variable_name|source_file|source_directory)",
+        action="store",
+        help="Column name that uniquely identifies a row (CDE) within the digest"
     )
     parser.add_argument(
         "-s",

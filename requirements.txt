@@ -7,5 +7,6 @@ spacy==3.4.1
 networkx==2.5.1
 requests==2.22.0
 tensorflow==2.9.1
+tensorflow-hub==0.12.0
 networkx==2.5.1
 git+https://github.com/epfml/sent2vec.git

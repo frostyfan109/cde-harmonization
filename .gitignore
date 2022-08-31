@@ -147,3 +147,6 @@ Thumbs.db
 # Editors
 .idea/
 .vscode/
+
+# Etc.
+cde_harmonization/trained_models

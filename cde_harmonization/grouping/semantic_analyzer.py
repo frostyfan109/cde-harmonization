@@ -3,11 +3,17 @@ import logging
 import os
 import itertools
 import tensorflow as tf
+import tensorflow_hub as tfhub
 import numpy as np
 import networkx as nx
 from scipy.spatial import distance
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple, Optional, NamedTuple
+
+# Make sure TF-Hub caches to the trained_models directory so that weird tempfile stuff doesn't happen.
+CACHE_DIR = os.path.join(os.path.dirname(__file__), "../", "trained_models")
+if not os.path.exists(CACHE_DIR): os.makedirs(CACHE_DIR)
+os.environ["TFHUB_CACHE_DIR"] = CACHE_DIR
 
 CDE = List[Dict]
 
@@ -150,7 +156,12 @@ class USE4Analyzer(SemanticAnalyzer):
     MODEL_PATH = os.path.join(os.path.dirname(__file__), "../", "trained_models", "universal-sentence-encoder_4")
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model = tf.keras.models.load_model(self.MODEL_PATH)
+        self.model = tfhub.load("https://tfhub.dev/google/universal-sentence-encoder/4")
+        # try:
+        #     self.model = tf.keras.models.load_model(self.MODEL_PATH)
+        # except:
+        #     self.logger.debug(f"USE4 model not available locally (should be saved under {self.MODEL_PATH}), downloading from Tensorflow Hub...")
+        #     self.model = tfhub.KerasLayer("https://tfhub.dev/google/universal-sentence-encoder/4")
     
     """ Returns the cosine similarity of the sentence encodings """
     def semantic_similarity(self, s1: str, s2: str) -> float:

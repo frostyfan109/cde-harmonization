@@ -44,7 +44,7 @@ class SemanticAnalyzer(ABC):
     def semantic_similarity(self, sentence1: str, sentence2: str) -> float:
         """ Returns a float between 0 and 1 indicating the semantic similarity of the two CDE questions. """
 
-    def regroup_pairings(self, pairings: List[Tuple[Dict, Dict, float]]) -> List[List[Dict]]:
+    def regroup_pairings(self, pairings: List[Tuple[Dict, Dict, float]]) -> Tuple[List[List[Dict]], nx.Graph]:
         """
         Need to take pairings of similary CDEs and group them with other pairings that share elements in common.
         If f1 and f2 are semantically similar, and so are f2 and f3, then f1 and f3 are also transitively similar.
@@ -54,6 +54,8 @@ class SemanticAnalyzer(ABC):
             # Ideally there'd be a column to uniquely identify a field, but this does not exist yet. 
             f1_id = field1[self.options["id"]]
             f2_id = field2[self.options["id"]]
+            # We store all node attributes under "data" because GEXF doesn't play nice with list attributes.
+            # A dict containing lists is okay though.
             G.add_node(
                 f1_id,
                 data=field1
@@ -62,7 +64,14 @@ class SemanticAnalyzer(ABC):
                 f2_id,
                 data=field2
             )
-            G.add_edge(f1_id, f2_id, score=score)
+            G.add_edge(
+                f1_id,
+                f2_id,
+                score=score,
+                # Just an aliased property
+                # `score` makes more practical sense, but `weight` is the more standard edge property.
+                weight=score
+            )
         regrouped = [
             [
                 {
@@ -80,7 +89,7 @@ class SemanticAnalyzer(ABC):
             ]
             for i, node_group in enumerate(list(nx.connected_components(G)))
         ]
-        return regrouped
+        return regrouped, G
 
     def find_grouping(self, categories: List[str], groupings: List[Grouping]) -> Optional[Grouping]:
         grouping_method = self.options["grouping_method"]

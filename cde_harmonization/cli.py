@@ -1,5 +1,7 @@
 import argparse
 import logging
+import os
+import networkx as nx
 from utils import CDELoader
 
 def categorize(args):
@@ -44,6 +46,7 @@ def analyze(args):
 
     cde_file = args.cde_file
     output_path = args.output_path
+    output_gexf = args.output_gexf
     fields = list(set(args.field)) if args.field is not None else ["description"]
     grouping_method = args.grouping_method
     similarity_threshold = args.similarity_threshold
@@ -74,7 +77,7 @@ def analyze(args):
     if analyzer_name == "use4":
         analyzer = USE4Analyzer(fields, options)
 
-    highly_related_fields = analyzer.analyze_cde(cde)
+    (highly_related_fields, pairing_network) = analyzer.analyze_cde(cde)
     # Flatten groups
     ungrouped_related_fields = []
     with open(output_path, "w+") as f:
@@ -83,6 +86,13 @@ def analyze(args):
                 field["related_group"] = f"group{i}"
             ungrouped_related_fields += group
         cde_loader.save(ungrouped_related_fields, output_path)
+    if output_gexf:
+        print(pairing_network)
+        nx.write_gexf(
+            pairing_network,
+            # Output under the same path/name, but different extension (gexf)
+            os.path.splitext(output_path)[0] + ".gexf"
+        )
 
 def make_categorize_parser(parser):
     parser.set_defaults(func=categorize)
@@ -146,6 +156,13 @@ def make_analyzer_parser(parser):
         "output_path",
         type=str,
         help="File path to output the categorized CDE under"
+    )
+    parser.add_argument(
+        "-G",
+        "--output_gexf",
+        action="store_true",
+        default=False,
+        help="Output pairings as an undirected network in Graph Exchange Format (gexf)."
     )
     parser.add_argument(
         "-a",

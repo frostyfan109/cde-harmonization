@@ -56,7 +56,7 @@ class CDELoader:
         return cde
     
     def save(self, cde: CDE, fp: str) -> None:
-        logger.debug(f"Saving CDE '{fp}' under {fp}")
+        logger.debug(f"Saving CDEs file under {fp}")
         extension = fp.split(".")[-1]
         if extension == "csv":
             return self.save_csv(cde, fp)

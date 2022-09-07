@@ -5,6 +5,7 @@ import re
 import spacy
 import requests
 from copy import deepcopy
+from itertools import chain
 from abc import ABC, abstractmethod
 from typing import List, Dict
 from rake_nltk import Rake
@@ -77,8 +78,13 @@ class KeyBERTCategorizer(Categorizer):
         minimum_score = self.options["score_threshold"]
         keyphrases = []
         try:
-            for processed_doc in self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer):
-                keyphrases += [keyphrase for (keyphrase, score) in processed_doc if score >= minimum_score]
+            keyphrases += [
+                keyphrase for (keyphrase, score)
+                in chain.from_iterable(
+                    self.model.extract_keywords(docs=docs, vectorizer=self.vectorizer)
+                )
+                if score >= minimum_score
+            ]
         except Exception as e:
             self.logger.error(f"Failed to process fields: {docs}")
         return keyphrases

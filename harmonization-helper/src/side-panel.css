@@ -1,3 +1,7 @@
+.side-panel.collapsed {
+    width: 0 !important;
+    max-width: 0 !important;
+}
 .side-panel .file-loader-list {
     padding: 0 !important;
 }

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Layout, Descriptions, Upload, Button, message, Modal, Space, Input, Typography, Collapse, Spin, List, Empty, Progress, Divider } from 'antd'
 import { ProList } from '@ant-design/pro-components'
-import { UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { UploadOutlined, DownloadOutlined, DeleteOutlined, RightOutlined, LeftOutlined } from '@ant-design/icons'
 import TimeAgo from 'react-timeago'
 import { useApp } from './app-context'
 import './side-panel.css'
@@ -70,7 +70,25 @@ const ClusteringInfo = () => {
   )
 }
 
-export const SidePanel = ({ }) => {
+const CollapseHandle = ({ collapsed, onChange }) => {
+  return (
+    <Button
+      type="default"
+      icon={ collapsed ? <RightOutlined /> : <LeftOutlined /> }
+      onClick={ () => onChange(!collapsed) }
+      style={{
+        position: "absolute",
+        top: 32,
+        right: 0,
+        transform: "translate(50%, -50%)",
+        backgroundColor: "#fff",
+        zIndex: 1000
+      }}
+    />
+  )
+}
+
+export const SidePanel = ({ collapsed, setCollapsed }) => {
   const {
     analysis, analysisHistory, loading,
     loadAnalysisFile, clearAnalysis,
@@ -93,14 +111,22 @@ export const SidePanel = ({ }) => {
   }
 
   return (
-    <Sider className="side-panel" style={{
+    <Sider className={ `side-panel ${ collapsed ? 'collapsed' : '' }` } style={{
       height: '100%',
       background: '#fff',
       padding: '16px 24px',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      position: 'relative'
     }}>
-      <div direction="vertical" size="large" style={{ width: "100%", overflow: "auto", flexGrow: 1, marginBottom: 16, borderBottom: '1px solid rgba(0, 0, 0, 0.06)' }}>
+      <CollapseHandle collapsed={ collapsed } onChange={ setCollapsed } />
+      <div style={{
+        width: "100%",
+        overflow: "auto",
+        flexGrow: 1,
+        marginBottom: 16,
+        borderBottom: "1px solid rgba(0, 0, 0, 0.06)"
+      }}>
         {
           analysis ? (
             <Space direction="vertical" size="large">
@@ -214,14 +240,14 @@ export const SidePanel = ({ }) => {
       </div>
       {/* <Divider plain style={{ marginBottom: 16 }}>{ fileName ? fileName : 'Please upload a CDE.' }</Divider> */}
       <Spin spinning={ loading }>
-      <Button.Group style={{ width: "100%" }}>
-        <Upload maxCount={ 1 } showUploadList={ false } beforeUpload={ uploadFile } className="upload-cde-button">
-          <Button block type="primary" icon={ <UploadOutlined /> }>
-            Upload analysis
-          </Button>
-        </Upload>
-        <Button onClick={ clearAnalysis } disabled={ analysis === null }>Close</Button>
-      </Button.Group>
+        <Button.Group style={{ width: "100%", display: collapsed ? "none" : undefined }}>
+          <Upload maxCount={ 1 } showUploadList={ false } beforeUpload={ uploadFile } className="upload-cde-button">
+            <Button block type="primary" icon={ <UploadOutlined /> }>
+              Upload analysis
+            </Button>
+          </Upload>
+          <Button onClick={ clearAnalysis } disabled={ analysis === null }>Close</Button>
+        </Button.Group>
       </Spin>
     </Sider>
   )

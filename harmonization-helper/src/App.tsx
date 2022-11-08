@@ -14,6 +14,8 @@ const { Header, Content, Sider } = Layout
 const { Pane } = Allotment
 
 function App() {
+  const [collapsed, setCollapsed] = useState<boolean>(false)
+
   return (
     <div className="App" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppProvider>
@@ -31,8 +33,8 @@ function App() {
           </Header>
           <Layout style={{ position: 'relative' }}>
             <Allotment>
-              <Pane minSize={ 300 } preferredSize={ 300 }>
-                <SidePanel />
+              <Pane minSize={ collapsed ? 48 : 300 } maxSize={ collapsed ? 48 : undefined } preferredSize={ 300 }>
+                <SidePanel collapsed={ collapsed } setCollapsed={ setCollapsed } />
               </Pane>
               <Pane>
                 <Content style={{ height: '100%' }}>

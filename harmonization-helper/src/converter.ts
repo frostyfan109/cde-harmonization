@@ -19,6 +19,27 @@ export enum HarmonizationDecision {
     POSSIBLE_GROUP = "Possible Group",
     HAS_PARENT = "Has Parent"
 }
+// This is the form that is used in state to conserve memory in local storage.
+export interface ClusterAnalysisNetwork {
+    id: string
+    name: string
+    nodes: {
+        id: string
+    }[]
+    edges: {
+        source: string
+        target: string
+        decision: HarmonizationDecision | null
+    }[]
+}
+// This is the augmented form that combines the source network data with the cluster data.
+// Note that the id returns to the `idField` key in this form.
+export interface CompleteClusterAnalysisNetwork extends Omit<ClusterAnalysisNetwork, 'nodes'> {
+    nodes: AnalysisNode[]
+    edges: (AnalysisEdge & {
+        decision: HarmonizationDecision | null
+    })[]
+}
 // CDE
 export interface AnalysisNode {
     categories: string[]
@@ -29,7 +50,6 @@ export interface AnalysisEdge {
     source: string
     target: string
     score: number
-    decision: HarmonizationDecision | null
 }
 export interface AnalysisNetwork {
     nodes: AnalysisNode[]
@@ -66,9 +86,27 @@ export const convertAnalysisDictToNetwork = (analysisDict: AnalysisDict, idField
         net.edges.push({
             source: id1,
             target: id2,
-            score: parseFloat(score),
-            decision: null
+            score: parseFloat(score)
         })
     })
     return net
+}
+
+export const clustersToNetworks = (
+    clusters: ClusterAnalysisNetwork[],
+    sourceNetwork: AnalysisNetwork,
+    idField: string="id"
+): CompleteClusterAnalysisNetwork[] => {
+    const findSourceNode = (id: string) => sourceNetwork.nodes.find((n) => n[idField] === id)!
+    const findSourceEdge = (source: string, target: string) => sourceNetwork.edges.find((e) => e.source === source && e.target === target)!
+
+    return clusters.map((cluster) => ({
+        ...cluster,
+        // No extra properties needed to map for nodes, just direct one-to-one mapping
+        nodes: cluster.nodes.map((n) => findSourceNode(n.id)),
+        edges: cluster.edges.map((e) => ({
+            ...findSourceEdge(e.source, e.target),
+            decision: e.decision
+        }))
+    }))
 }

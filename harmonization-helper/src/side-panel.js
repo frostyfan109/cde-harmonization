@@ -1,7 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Layout, Descriptions, Upload, Button, message, Modal, Space, Input, Typography, Collapse } from 'antd'
-import { UploadOutlined } from '@ant-design/icons'
+import { Layout, Descriptions, Upload, Button, message, Modal, Space, Input, Typography, Collapse, Spin, List, Empty, Progress, Divider } from 'antd'
+import { ProList } from '@ant-design/pro-components'
+import { UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
+import TimeAgo from 'react-timeago'
 import { useApp } from './app-context'
+import './side-panel.css'
 
 const { Sider } = Layout
 const { Panel } = Collapse
@@ -68,7 +71,12 @@ const ClusteringInfo = () => {
 }
 
 export const SidePanel = ({ }) => {
-  const { analysis, loadAnalysisFile, clearAnalysis } = useApp()
+  const {
+    analysis, analysisHistory, loading,
+    loadAnalysisFile, clearAnalysis,
+    downloadAnalysis, deleteAnalysis,
+    setActiveAnalysisKey
+  } = useApp()
 
   const uploadFile = (file) => {
     if (file.name.endsWith('.csv')) {
@@ -85,26 +93,136 @@ export const SidePanel = ({ }) => {
   }
 
   return (
-    <Sider style={{
+    <Sider className="side-panel" style={{
       height: '100%',
       background: '#fff',
       padding: '16px 24px',
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <Space direction="vertical" size="large" style={{ width: "100%", overflow: "auto", flexGrow: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.06)' }}>
-        <FileInfo />
-        <ClusteringInfo />
-      </Space>
+      <div direction="vertical" size="large" style={{ width: "100%", overflow: "auto", flexGrow: 1, marginBottom: 16, borderBottom: '1px solid rgba(0, 0, 0, 0.06)' }}>
+        {
+          analysis ? (
+            <Space direction="vertical" size="large">
+              <FileInfo />
+              <ClusteringInfo />
+            </Space>
+          ) : (
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              <Text style={{ fontSize: 15, fontWeight: 500 }}>Select a file</Text>
+              <ProList
+                rowKey="id"
+                itemLayout="vertical"
+                loading={ loading }
+                dataSource={ analysisHistory?.sort((a, b) => b.lastModified - a.lastModified).map((analysis) => ({
+                  id: analysis.id,
+                  name: analysis.fileName,
+                  lastModified: analysis.lastModified,
+                  created: analysis.created,
+                  progress: Object.values(analysis.communities).map((clusterAlg) => ({
+                    name: clusterAlg.name,
+                    progress: (clusterAlg.clusters.reduce((acc, cur) => (
+                      acc + cur.edges.filter((e) => e.decision !== null).length
+                    ), 0) / clusterAlg.clusters.reduce((acc, cur) => (
+                      acc + cur.edges.length
+                    ), 0)) * 100
+                  }))
+                })) }
+                metas={{
+                  title: {
+                    dataIndex: "name"
+                  },
+                  description: {
+                    dataIndex: ["lastModified", "progress"],
+                    render: (_, { id, lastModified, created, progress }) => (
+                      <Space direction="vertical" size="large" style={{ width: "100%" }}>
+                        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                          {
+                            progress.map(({ name, progress }) => (
+                              <div key={ name } style={{ display: "flex", alignItems: "center" }}>
+                                <div style={{ color: "#00000073", flexShrink: 0, marginRight: 8 }}>{ name }</div>
+                                <Progress percent={ progress } style={{ flexGrow: 1 }} />
+                              </div> 
+                            ))
+                          }
+                          <Space style={{ alignItems: "stretch" }}>
+                            <div>
+                              <div style={{ color: "#00000073" }}>Last modified</div>
+                              <div style={{ color: "#000000D9" }}><TimeAgo date={ lastModified } /></div>
+                            </div>
+                            <Divider type="vertical" style={{ height: "100%" }} />
+                            <div>
+                              <div style={{ color: "#00000073" }}>Created</div>
+                              <div style={{ color: "#000000D9" }}><TimeAgo date={ created } /></div>
+                            </div>
+                          </Space>
+                        </Space>
+                        <div style={{ display: "flex" }}>
+                          <Button
+                            type="primary"
+                            style={{ marginRight: 8 }}
+                            onClick={ () => setActiveAnalysisKey(id) }
+                          >
+                            Continue
+                          </Button>
+                          <Button
+                            type="default"
+                            icon={ <DownloadOutlined /> }
+                            onClick={ () => downloadAnalysis(id) }
+                            style={{ marginRight: 8 }}
+                          />
+                          <Button
+                            type="default"
+                            danger
+                            icon={ <DeleteOutlined /> }
+                            onClick={ () => deleteAnalysis(id) }
+                          />
+                        </div>
+                      </Space>
+                    )
+                  }
+                //   content: {
+                //     dataIndex: "content",
+                //     render: (text) => (
+                //         <div style={{ display: "flex", justifyContent: "space-around" }}>
+                //             {
+                //                 text.map((t) => (
+                //                     <div key={ t.label }>
+                //                         <div style={{ color: "#00000073" }}>{ t.label }</div>
+                //                         <div style={{ color: "#000000D9" }}>
+                //                             { t.value }
+                //                         </div>
+                //                     </div>
+                //                 ))
+                //             }
+                //         </div>
+                //     )
+                // },
+                }}
+                locale={{
+                  emptyText: <Empty description="Upload a file to begin" />
+                }}
+                style={{
+                  padding: 16,
+                  margin: "0 0px"
+                }}
+                className="file-loader-list"
+              />
+            </Space>
+          )
+        }
+      </div>
       {/* <Divider plain style={{ marginBottom: 16 }}>{ fileName ? fileName : 'Please upload a CDE.' }</Divider> */}
-      <Button.Group style={{ marginTop: 16, width: "100%" }}>
+      <Spin spinning={ loading }>
+      <Button.Group style={{ width: "100%" }}>
         <Upload maxCount={ 1 } showUploadList={ false } beforeUpload={ uploadFile } className="upload-cde-button">
           <Button block type="primary" icon={ <UploadOutlined /> }>
             Upload analysis
           </Button>
         </Upload>
-        <Button onClick={ clearAnalysis } disabled={ analysis === null }>Clear</Button>
+        <Button onClick={ clearAnalysis } disabled={ analysis === null }>Close</Button>
       </Button.Group>
+      </Spin>
     </Sider>
   )
 }

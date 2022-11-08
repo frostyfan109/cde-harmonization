@@ -1,10 +1,10 @@
 import netClustering from 'netclustering'
-import { AnalysisEdge, AnalysisNetwork, AnalysisNode } from './converter'
+import { AnalysisEdge, AnalysisNetwork, AnalysisNode, ClusterAnalysisNetwork } from './converter'
 
 interface NewmanGroupedNode extends AnalysisNode {
     cluster: string
 }
-export function newmanCluster(net: AnalysisNetwork, idField: string="id"): AnalysisNetwork[] {
+export function newmanCluster(net: AnalysisNetwork, idField: string="id"): ClusterAnalysisNetwork[] {
     const edgeEncodings: { [key: string]: number } = {}
     // The clustering algorithm mutates the objects.
     const nodes: AnalysisNode[] = JSON.parse(JSON.stringify(net.nodes))
@@ -23,17 +23,26 @@ export function newmanCluster(net: AnalysisNetwork, idField: string="id"): Analy
             return acc
         }, {})
     )
-    return clusteredNodes.map((clusteredNodes) => {
-        const originalNodes = clusteredNodes.map((node) => net.nodes.find((_node) => _node[idField] === node[idField])!)
+    return clusteredNodes.map((clusteredNodes, i) => {
+        // const originalNodes = clusteredNodes.map((node) => net.nodes.find((_node) => _node[idField] === node[idField])!)
+        const newNodes = clusteredNodes.map((node) => ({
+            id: node[idField]
+        }))
         const net2 = {
-            nodes: originalNodes,
-            edges: originalNodes.flatMap((node) => net.edges.filter(({ source }) => node[idField] === source))
+            id: (i + 1).toString(),
+            name: `Cluster ${ i + 1 }`,
+            nodes: newNodes,
+            edges: newNodes.flatMap((node) => net.edges.filter(({ source }) => node.id === source)).map((edge) => ({
+                source: edge.source,
+                target: edge.target,
+                decision: null
+            }))
         }
         return net2
     })
 }
 
-export function connectedComponents(net: AnalysisNetwork, idField: string="id"): AnalysisNetwork[] {
+export function connectedComponents(net: AnalysisNetwork, idField: string="id"): ClusterAnalysisNetwork[] {
     const V = net.nodes.length
     const adjListArray: number[][] = [...new Array(V)].map(() => ([]))
     const edgeEncodings: { [key: string]: number } = {}
@@ -78,12 +87,20 @@ export function connectedComponents(net: AnalysisNetwork, idField: string="id"):
     }
 
     return connectedComponents
-        .map((components) => {
-            const nodeIds = components.map((id) => Object.keys(edgeEncodings).find((x) => edgeEncodings[x] === id) )
-            const nodes = nodeIds.map((nodeId) => net.nodes.find((n) => n[idField] === nodeId)!)
+        .map((components, i) => {
+            const nodes = components.map((id) => Object.keys(edgeEncodings).find((x) => edgeEncodings[x] === id)! ).map((nodeId) => ({
+                id: nodeId
+            }))
+            // const nodes = nodeIds.map((nodeId) => net.nodes.find((n) => n[idField] === nodeId)!)
             const net2 = {
+                id: (i + 1).toString(),
+                name: `Cluster ${ i + 1 }`,
                 nodes,
-                edges: nodes.flatMap((node) => net.edges.filter(({ source, target }) => node[idField] === source))
+                edges: nodes.flatMap((node) => net.edges.filter(({ source, target }) => node.id === source)).map((edge) => ({
+                    source: edge.source,
+                    target: edge.target,
+                    decision: null
+                }))
             }
             return net2
         })

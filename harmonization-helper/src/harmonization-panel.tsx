@@ -1,11 +1,16 @@
-import React, { Fragment, useMemo, useState } from 'react'
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Empty, Layout, Segmented, Space, Typography, Menu, Collapse, Badge, Tag, Button } from 'antd'
 import { RightOutlined } from '@ant-design/icons'
+import { blue, cyan } from '@ant-design/colors'
 import { ProList } from '@ant-design/pro-components'
 import { SizeMe } from 'react-sizeme'
 import { useApp } from './app-context'
+/* @ts-ignore */
+import chroma from 'chroma-js'
 import { DebouncedInput } from './debounced-input'
-import { AnalysisNetwork } from './converter'
+import { useLunrSearch } from './use-lunr-search'
+import { AnalysisNetwork, ClusterAnalysisNetwork, clustersToNetworks, CompleteClusterAnalysisNetwork } from './converter'
+import { Palette, PastelPalette } from './palette'
 import './harmonization-panel.css'
 
 const { Sider } = Layout
@@ -19,7 +24,7 @@ enum ClusterStatus {
 }
 
 interface HarmonizationClusterProps {
-    clusters: AnalysisNetwork[]
+    clusters: ClusterAnalysisNetwork[]
 }
 
 const ListHeaderBadge = ({ count, active }: { count: number, active: boolean }) => {
@@ -39,38 +44,92 @@ const ListHeaderBadge = ({ count, active }: { count: number, active: boolean }) 
 }
 
 const HarmonizationPanelBody = ({ }) => {
-    const { analysis, activeCommunityAlgorithm, setActiveCommunityAlgorithm, zoomIntoCluster } = useApp()
+    const { analysis, activeCommunityAlgorithm, setActiveCommunityAlgorithm, zoomIntoCluster, harmonizationFields } = useApp()
     const [activeListView, setActiveListView] = useState<React.Key|undefined>("all")
     const [search, setSearch] = useState<string>("")
+    
+    const categoryColors = useRef<{ [category: string]: string }>({})
+    const palette = useRef(new Palette(chroma(cyan[3]), { mode: 'hex' }))
 
     const completeClusters = useMemo(() => (
-        activeCommunityAlgorithm
-            ? activeCommunityAlgorithm.clusters.filter((cluster) => cluster.edges.every((edge) => edge.decision !== null))
-            : []
-    ), [activeCommunityAlgorithm])
+        activeCommunityAlgorithm ?
+            clustersToNetworks(
+                activeCommunityAlgorithm.clusters.filter((cluster) => cluster.edges.every((edge) => edge.decision !== null)),
+                analysis!.network,
+                analysis!.metadata.idField
+            ) : []
+    ), [analysis, activeCommunityAlgorithm])
     const incompleteClusters = useMemo(() => (
-        activeCommunityAlgorithm
-            ? activeCommunityAlgorithm.clusters.filter((cluster) => cluster.edges.some((edge) => edge.decision !== null))
-            : []
-    ), [activeCommunityAlgorithm])
+        activeCommunityAlgorithm ?
+            clustersToNetworks(
+                activeCommunityAlgorithm.clusters.filter((cluster) => cluster.edges.some((edge) => edge.decision !== null)),
+                analysis!.network,
+                analysis!.metadata.idField
+            ) : []
+    ), [analysis, activeCommunityAlgorithm])
     const todoClusters = useMemo(() => (
-        activeCommunityAlgorithm
-            ? activeCommunityAlgorithm.clusters.filter((cluster) => !cluster.edges.every((edge) => edge.decision !== null))
-            : []
-    ), [activeCommunityAlgorithm])
+        activeCommunityAlgorithm ?
+            clustersToNetworks(
+                activeCommunityAlgorithm.clusters.filter((cluster) => !cluster.edges.every((edge) => edge.decision !== null)),
+                analysis!.network,
+                analysis!.metadata.idField
+            ) : []
+    ), [analysis, activeCommunityAlgorithm])
+
+    const clusterData = useMemo(() => (
+        activeListView === "all"
+            ? activeCommunityAlgorithm
+                ? clustersToNetworks(activeCommunityAlgorithm!.clusters, analysis!.network, analysis!.metadata.idField)
+                : []
+        : activeListView === "done"
+            ? completeClusters
+        : activeListView === "incomplete"
+            ? incompleteClusters
+        : todoClusters
+    ), [activeListView, completeClusters, incompleteClusters, todoClusters, activeCommunityAlgorithm, analysis])
+
+    const docs = useMemo(() => (
+        clusterData.map((cluster) => ({
+            id: cluster.id,
+            name: cluster.name,
+            categories: cluster.nodes.reduce<string[]>((acc, n) => ([ ...acc, ...n.categories.filter((category) => category && !acc.includes(category)) ]), []).join(" "),
+            ...Object.fromEntries(harmonizationFields.map((field: string) => ([
+                field,
+                cluster.nodes.reduce<any[]>((acc, n) => ([
+                    ...acc,
+                    n[field]
+                ]), []).join(" ")
+            ])))
+        }))
+    ), [clusterData, harmonizationFields])
+
+    const lunrConfig = useMemo(() => ({
+        docs,
+        index: {
+            ref: "id",
+            fields: [
+                "name",
+                "categories",
+                ...harmonizationFields
+            ]
+        }
+    }), [docs, harmonizationFields])
+    const { index, lexicalSearch } = useLunrSearch(lunrConfig)
+
+    const filteredClusterData = useMemo<CompleteClusterAnalysisNetwork[]>(() => {
+        if (search.length < 3) return clusterData
+
+        const { hits, tokens } = lexicalSearch(search)
+        // Arbitrary threshold score
+        const minScore = 0.5
+        return hits.filter((hit: any) => hit.score >= minScore).map((hit: any) => clusterData.find((cluster) => cluster.id === hit.ref)!)
+    }, [clusterData, search, lexicalSearch])
+
     const dataSource = useMemo(() => (
-        (
-            activeListView === "all"
-                ? activeCommunityAlgorithm?.clusters || []
-            : activeListView === "done"
-                ? completeClusters
-            : activeListView === "incomplete"
-                ? incompleteClusters
-            : todoClusters
-        ).map((cluster, i) => ({
-            name: `Cluster ${ i + 1 }`,
+        filteredClusterData.map((cluster) => ({
+            id: cluster.id,
+            name: cluster.name,
             desc: cluster.nodes.reduce<string[]>((acc, n) => ([ ...acc, ...n.categories.filter((category) => category && !acc.includes(category)) ]), []),
-            index: i,
             status: (
                 completeClusters.find((c) => c === cluster)
                     ? ClusterStatus.DONE
@@ -89,7 +148,7 @@ const HarmonizationPanelBody = ({ }) => {
                 }
             ]
         }))
-    ), [completeClusters, incompleteClusters, todoClusters, activeCommunityAlgorithm, activeListView])
+    ), [completeClusters, incompleteClusters, filteredClusterData])
 
     const toolbarOptions = useMemo(() => ({
         menu: {
@@ -105,7 +164,7 @@ const HarmonizationPanelBody = ({ }) => {
                 },
                 {
                     key: "incomplete",
-                    label: <span>Incomplete <ListHeaderBadge count={ incompleteClusters!.length } active={ activeListView === "incomplete" } /></span>
+                    label: <span>Started <ListHeaderBadge count={ incompleteClusters!.length } active={ activeListView === "incomplete" } /></span>
                 },
                 {
                     key: "todo",
@@ -159,7 +218,17 @@ const HarmonizationPanelBody = ({ }) => {
                 <div style={{ marginTop: 8 }}>
                     {
                         (categories as string[]).map((category) => (
-                            <Tag style={{ marginRight: 4, marginBottom: 4 }} key={ category }>{ category }</Tag>
+                            <Tag
+                                color={ categoryColors.current[category] }
+                                style={{
+                                    color: chroma.contrast(categoryColors.current[category], "#fff") >= 3 ? "#fff" : "#000",
+                                    marginRight: 4,
+                                    marginBottom: 4
+                                }}
+                                key={ category }
+                            >
+                                { category }
+                            </Tag>
                         ))
                     }
                 </div>
@@ -192,6 +261,14 @@ const HarmonizationPanelBody = ({ }) => {
         
     }), [])
 
+    useEffect(() => {
+        if (analysis) {
+            analysis.network.nodes.flatMap((n) => n.categories).forEach((category) => {
+                if (!categoryColors.current[category]) categoryColors.current[category] = palette.current.getNextColor()
+            })
+        }
+    }, [analysis?.network])
+
     if (!analysis) return <Empty style={{ marginTop: 12 }} />
     return (
         <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
@@ -206,7 +283,7 @@ const HarmonizationPanelBody = ({ }) => {
                 style={{ marginBottom: 4 }}
             />
             <div style={{ flexGrow: 1 }}>
-                <SizeMe monitorHeight>
+                <SizeMe monitorHeight refreshMode="debounce">
                     { ({ size }) => (
                         <div style={{ height: size.height !== null ? size.height : "auto", overflow: "auto" }}>
                             <ProList
@@ -214,7 +291,7 @@ const HarmonizationPanelBody = ({ }) => {
                                 dataSource={ dataSource }
                                 metas={ metaOptions }
                                 toolbar={ toolbarOptions }
-                                onItem={ ({ index }) => ({
+                                onItem={ ({ id }) => ({
                                     onMouseEnter: () => {
 
                                     },
@@ -222,7 +299,7 @@ const HarmonizationPanelBody = ({ }) => {
 
                                     },
                                     onClick: () => {
-                                        zoomIntoCluster(index)
+                                        zoomIntoCluster(id)
                                     }
                                 }) }
                                 locale={{

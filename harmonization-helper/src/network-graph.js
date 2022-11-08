@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
 import { SizeMe } from 'react-sizeme'
@@ -14,17 +14,11 @@ const SettingsButton = ({ onClick }) => {
 }
 
 export const NetworkGraph = ({ }) => {
-    const { analysis, activeCommunityAlgorithm, graphData, networkRef } = useApp()
+    const { analysis, activeCommunityAlgorithm, graphData, networkRef, harmonizationFields: displayFields } = useApp()
     const [showSettingsModal, setShowSettingsModal] = useState(false)
 
     const idField = useMemo(() => analysis?.metadata.idField, [analysis])
     
-    const displayFields = useMemo(() => (idField ? [
-        // idField,
-        "description",
-        "label"
-    ] : []), [idField])
-
     const forceGraphProps = useMemo(() => ({
         graphData,
         nodeId: idField,
@@ -37,14 +31,14 @@ export const NetworkGraph = ({ }) => {
                 </ul>
             </div>
         `,
-        nodeAutoColorBy: (node) => activeCommunityAlgorithm.clusters.findIndex((c) => !!c.nodes.find((n) => n[idField] === node[idField])),
+        nodeAutoColorBy: (node) => activeCommunityAlgorithm.clusters.findIndex((c) => !!c.nodes.find((n) => n.id === node[idField])),
         linkLabel: (link) => "Score: " + link.score,
         // linkColor={ (link) => "rgba(" + chroma('#2e11d4').alpha(link.score).rgba() + ")" }
         linkWidth: 1,
         minZoom: 0.125,
         maxZoom: 50,
         ref: networkRef
-    }), [ graphData, idField, networkRef, activeCommunityAlgorithm ])
+    }), [ graphData, idField, activeCommunityAlgorithm ])
 
     return (
         <div className="network-container" style={{

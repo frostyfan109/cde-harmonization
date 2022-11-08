@@ -1,0 +1,15 @@
+.node-tooltip {
+    padding: 4px 8px;
+}
+.node-tooltip-title {
+    font-weight: 600;
+    font-size: 17px;
+}
+.node-tooltip > .ant-divider {
+    background-color: white;
+    margin-top: 8px;
+    margin-bottom: 12px;
+}
+.node-tooltip ul {
+    padding-left: 16px !important;
+}

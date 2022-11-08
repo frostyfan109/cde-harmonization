@@ -1,0 +1,13 @@
+.harmonization-panel > .ant-layout-sider-children {
+    display: block !important;
+}
+.harmonization-panel .cluster-list .ant-pro-card-body {
+    padding-bottom: 0;
+}
+.harmonization-panel .cluster-list .ant-list-item {
+    padding: 12px 12px;
+}
+.harmonization-panel .cluster-list .ant-pro-table-list-toolbar-menu > * {
+    margin-top: 8px;
+    margin-bottom: 8px;
+}

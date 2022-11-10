@@ -12,13 +12,34 @@ interface AnalysisRow {
 }
 export type AnalysisDict = AnalysisRow[]
 
-export enum HarmonizationDecision {
-    REJECTED = "Rejected",
-    EXACT_MATCH = "Exact Match",
-    MAPPABLE_GROUP = "Mappable Group",
-    POSSIBLE_GROUP = "Possible Group",
-    HAS_PARENT = "Has Parent"
+export interface HarmonizationDecision {
+    id: string
+    name: string
 }
+export const HarmonizationRejected: HarmonizationDecision= {
+    id: "rejected",
+    name: "Rejected"
+}
+export const HarmonizationExactMatch: HarmonizationDecision = {
+    id: "exact_match",
+    name: "Exact Match"
+}
+export const HarmonizationMappableGroup: HarmonizationDecision = {
+    id: "mappable_group",
+    name: "Mappable Group"
+}
+export const HarmonizationPossibleGroup: HarmonizationDecision = {
+    id: "possible_group",
+    name: "Possible Group"
+}
+export const HarmonizationHasParent: HarmonizationDecision = {
+    id: "has_parent",
+    name: "Has Parent"
+}
+export const ValidHarmonizationDecisions = [
+    HarmonizationRejected, HarmonizationExactMatch, HarmonizationMappableGroup,
+    HarmonizationPossibleGroup, HarmonizationHasParent
+]
 // This is the form that is used in state to conserve memory in local storage.
 export interface ClusterAnalysisNetwork {
     id: string
@@ -29,7 +50,7 @@ export interface ClusterAnalysisNetwork {
     edges: {
         source: string
         target: string
-        decision: HarmonizationDecision | null
+        decision: HarmonizationDecision[] | null
     }[]
 }
 // This is the augmented form that combines the source network data with the cluster data.
@@ -37,7 +58,7 @@ export interface ClusterAnalysisNetwork {
 export interface CompleteClusterAnalysisNetwork extends Omit<ClusterAnalysisNetwork, 'nodes'> {
     nodes: AnalysisNode[]
     edges: (AnalysisEdge & {
-        decision: HarmonizationDecision | null
+        decision: HarmonizationDecision[] | null
     })[]
 }
 // CDE
@@ -83,7 +104,11 @@ export const convertAnalysisDictToNetwork = (analysisDict: AnalysisDict, idField
     edgesToCreate.forEach(([id1, id2, score]) => {
         id1 = net.nodes.find((node) => node[idField].endsWith(id1))![idField]
         id2 = net.nodes.find((node) => node[idField].endsWith(id2))![idField]
-        net.edges.push({
+        const exists = !!net.edges.find((e) => (
+            (e.source === id1 && e.target === id2) ||
+            (e.source === id2 && e.target === id1)
+        ))
+        if (!exists) net.edges.push({
             source: id1,
             target: id2,
             score: parseFloat(score)
@@ -91,16 +116,15 @@ export const convertAnalysisDictToNetwork = (analysisDict: AnalysisDict, idField
     })
     return net
 }
-
-export const clustersToNetworks = (
-    clusters: ClusterAnalysisNetwork[],
+export const clusterToNetwork = (
+    cluster: ClusterAnalysisNetwork,
     sourceNetwork: AnalysisNetwork,
     idField: string="id"
-): CompleteClusterAnalysisNetwork[] => {
+): CompleteClusterAnalysisNetwork => {
     const findSourceNode = (id: string) => sourceNetwork.nodes.find((n) => n[idField] === id)!
     const findSourceEdge = (source: string, target: string) => sourceNetwork.edges.find((e) => e.source === source && e.target === target)!
 
-    return clusters.map((cluster) => ({
+    return ({
         ...cluster,
         // No extra properties needed to map for nodes, just direct one-to-one mapping
         nodes: cluster.nodes.map((n) => findSourceNode(n.id)),
@@ -108,5 +132,12 @@ export const clustersToNetworks = (
             ...findSourceEdge(e.source, e.target),
             decision: e.decision
         }))
-    }))
+    })
+}
+export const clustersToNetworks = (
+    clusters: ClusterAnalysisNetwork[],
+    sourceNetwork: AnalysisNetwork,
+    idField: string="id"
+): CompleteClusterAnalysisNetwork[] => {
+    return clusters.map((cluster) => clusterToNetwork(cluster, sourceNetwork, idField))
 }

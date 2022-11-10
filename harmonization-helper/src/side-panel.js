@@ -24,6 +24,16 @@ const FileInfo = () => {
       <Descriptions.Item label="Mean score">
         { analysis ? Math.round((analysis.network.edges.reduce((acc, cur) => acc + cur.score, 0) / analysis.network.edges.length) * 100) / 100 : 'null' }
       </Descriptions.Item>
+      <Descriptions.Item label="Median score">
+        { analysis ? (() => {
+            const data = analysis.network.edges.map((edge) => edge.score).sort()
+            const medianPoints = (data.length % 2 === 0) ?
+              [data[(data.length / 2) - 1], data[(data.length / 2)]] : 
+              [data[(data.length + 1) / 2 - 1]]
+            return medianPoints.reduce((acc, cur) => acc + cur, 0) / medianPoints.length
+          })() : 'null'
+        }
+      </Descriptions.Item>
     </Descriptions>
   )
 }
@@ -159,7 +169,7 @@ export const SidePanel = ({ collapsed, setCollapsed }) => {
                     dataIndex: "name"
                   },
                   description: {
-                    dataIndex: ["lastModified", "progress"],
+                    dataIndex: ["lastModified", "created", "progress"],
                     render: (_, { id, lastModified, created, progress }) => (
                       <Space direction="vertical" size="large" style={{ width: "100%" }}>
                         <Space direction="vertical" size="middle" style={{ width: "100%" }}>

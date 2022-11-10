@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from 'antd'
+import { Button, Checkbox, Modal, Space, Tabs } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
 import { SizeMe } from 'react-sizeme'
 import chroma from 'chroma-js'
 import ForceGraph2D from 'react-force-graph-2d'
-import { useApp } from './app-context'
+import { useDeepCompareMemo } from 'use-deep-compare'
+import { DEFAULT_HARMONZIATION_FIELDS, useApp } from './app-context'
 import './network-graph.css'
 
 const SettingsButton = ({ onClick }) => {
@@ -14,12 +15,26 @@ const SettingsButton = ({ onClick }) => {
 }
 
 export const NetworkGraph = ({ }) => {
-    const { analysis, activeCommunityAlgorithm, graphData, networkRef, harmonizationFields: displayFields } = useApp()
+    const { analysis, activeCommunityAlgorithm, graphData, networkRef, harmonizationFields: displayFields, setHarmonizationFields } = useApp()
     const [showSettingsModal, setShowSettingsModal] = useState(false)
 
+    const allFields = useMemo(() => analysis ? analysis.network.nodes.reduce((acc, node) => {
+        Object.keys(node).forEach((field) => {
+            if (!acc.includes(field)) acc.push(field)
+        })
+        return acc
+    }, []) : [], [analysis?.network.nodes])
+
     const idField = useMemo(() => analysis?.metadata.idField, [analysis])
+    // Create a map from node id -> cluster id, color nodes based on the cluster they belong to.
+    const nodeAutoColorMap = useMemo(() => activeCommunityAlgorithm ? Object.fromEntries(
+        activeCommunityAlgorithm.clusters.flatMap((cluster) => cluster.nodes.map((node) => ([
+            node.id,
+            cluster.id
+        ])))
+    ) : {}, [activeCommunityAlgorithm])
     
-    const forceGraphProps = useMemo(() => ({
+    const forceGraphProps = useDeepCompareMemo(() => ({
         graphData,
         nodeId: idField,
         nodeLabel: (node) => `
@@ -31,14 +46,14 @@ export const NetworkGraph = ({ }) => {
                 </ul>
             </div>
         `,
-        nodeAutoColorBy: (node) => activeCommunityAlgorithm.clusters.findIndex((c) => !!c.nodes.find((n) => n.id === node[idField])),
+        nodeAutoColorBy: (node) => nodeAutoColorMap[node[idField]],
         linkLabel: (link) => "Score: " + link.score,
         // linkColor={ (link) => "rgba(" + chroma('#2e11d4').alpha(link.score).rgba() + ")" }
         linkWidth: 1,
         minZoom: 0.125,
         maxZoom: 50,
         ref: networkRef
-    }), [ graphData, idField, activeCommunityAlgorithm ])
+    }), [ graphData, idField, nodeAutoColorMap, displayFields ])
 
     return (
         <div className="network-container" style={{
@@ -62,6 +77,46 @@ export const NetworkGraph = ({ }) => {
                     </div>
                 ) }
             </SizeMe>
+            <Modal
+                title="Settings"
+                okText="Save"
+                cancelButtonProps={{ style: { display: "none" }}}
+                open={ showSettingsModal }
+                onOk={ () => setShowSettingsModal(false) }
+                onCancel={ () => setShowSettingsModal(false) }
+                bodyStyle={{ paddingTop: 0 }}
+            >
+                <Tabs
+                    items={[
+                        {
+                            key: "harmonization-fields",
+                            label: "Harmonization Fields" ,
+                            children: (
+                                <div>
+                                    <Checkbox.Group
+                                        options={
+                                            allFields.map((field) => ({
+                                                label: field,
+                                                value: field,
+                                                style: { marginBottom: 8 }
+                                            }))
+                                        }
+                                        value={ displayFields }
+                                        onChange={ (fields) => setHarmonizationFields(fields) }
+                                    />
+                                    <Button
+                                        type="default"
+                                        onClick={ () => setHarmonizationFields(DEFAULT_HARMONZIATION_FIELDS) }
+                                        style={{ marginTop: 8 }}
+                                    >
+                                        Reset
+                                    </Button>
+                                </div>
+                            )
+                        }
+                    ]}
+                />
+            </Modal>
         </div>
     )
 }

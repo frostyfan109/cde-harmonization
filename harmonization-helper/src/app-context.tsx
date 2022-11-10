@@ -1,21 +1,31 @@
 import { useContext, createContext, useState, useMemo, useCallback, useRef, RefObject, useEffect } from 'react'
 import { Button, message, Modal, Space, Typography } from 'antd'
+import { cyan } from '@ant-design/colors'
 import TimeAgo from 'react-timeago'
 import Papa from 'papaparse'
 import fileDownload from 'js-file-download'
 import { v4 as uuid } from 'uuid'
+import chroma from 'chroma-js'
 import { useLocalStorage } from './use-local-storage'
 import { AnalysisCSVMetadataForm } from './csv-metadata-form'
-import { AnalysisDict, AnalysisNetwork, ClusterAnalysisNetwork, convertAnalysisDictToNetwork, InvalidAnalysisDictError } from './converter'
+import { AnalysisDict, AnalysisNetwork, ClusterAnalysisNetwork, convertAnalysisDictToNetwork, HarmonizationDecision, InvalidAnalysisDictError } from './converter'
 import { db } from './db'
 import { connectedComponents, newmanCluster } from './algorithms'
+import { Palette, PastelPalette } from './palette'
 
 const { Text, Paragraph } = Typography
 
+export const DEFAULT_HARMONZIATION_FIELDS = [
+    "description",
+    "label"
+]
+
 interface AnalysisFileMetadata {
+    nameField: string
     idField: string
     listDelimiter: string
     dictDelimiter: string
+    transitiveMatches: boolean
 }
 
 interface ClusteringAlgorithm {
@@ -43,6 +53,7 @@ export interface Analysis {
 
 export interface IAppContext {
     harmonizationFields: string[]
+    setHarmonizationFields: (fields: string[]) => void
     addHarmonizationField: (field: string) => void
     removeHarmonizationField: (field: string) => void
 
@@ -53,37 +64,51 @@ export interface IAppContext {
     networkRef: RefObject<any>
 
     loading: boolean
+
+    categoryColors: React.RefObject<{ [category: string]: string }>
+    categoryPalette: React.RefObject<Palette>
     
     loadAnalysisFile: (fileName: string, csvText: string) => void
     clearAnalysis: () => void
-    downloadAnalysis: (analysis: Analysis|string) => void
-    deleteAnalysis: (analysis: Analysis|string) => void
+    downloadAnalysis: (analysis: Analysis | string) => void
+    deleteAnalysis: (analysis: Analysis | string) => void
     setActiveAnalysisKey: (key: string | null) => void
-
-
-    activeCommunityAlgorithm: ClusteringAlgorithm | null,
-    setActiveCommunityAlgorithm: (id: string) => void,
+    
+    updateHarmonizationDecision: (cluster: string, sourceId: string, targetId: string, decision: HarmonizationDecision[] | null) => void
+    
+    
+    activeCommunityAlgorithm: ClusteringAlgorithm | null
+    setActiveCommunityAlgorithm: (id: string) => void
+    activeCluster: ClusterAnalysisNetwork | null
+    setActiveCluster: (id: string | null) => void
 
     zoomIntoCluster: (id: string) => void
 }
 
 export const AppContext = createContext<IAppContext>({} as IAppContext)
 export const AppProvider = ({ children }: any) => {
-    const [harmonizationFields, setHarmonizationFields] = useLocalStorage("harmonization-fields", [
-        "variable_name",
-        "description",
-        "label",
-    ])
-    const [activeAnalysisKey, setActiveAnalysisKey] = useLocalStorage("active-analysis-key", null)
+    const [harmonizationFields, setHarmonizationFields] = useLocalStorage("harmonization-fields", DEFAULT_HARMONZIATION_FIELDS)
+    const [activeClusterId, setActiveClusterId] = useState<string|null>(null)
+    const [activeAnalysisKey, _setActiveAnalysisKey] = useLocalStorage("active-analysis-key", null)
     const [analysisHistory, setAnalysisHistory] = useState<Analysis[]|null>(null)
-    const analysis = useMemo<Analysis|null>(() => analysisHistory?.find((a: Analysis) => a.id === activeAnalysisKey) || null, [analysisHistory, activeAnalysisKey])
+    const analysis = useMemo<Analysis|null>(() => (
+        analysisHistory?.find((a: Analysis) => a.id === activeAnalysisKey) || null
+    ), [analysisHistory, activeAnalysisKey])
     const backupToDelete = useMemo<Analysis|null>(() => (
         analysisHistory && analysisHistory.length >= 10
             ? analysisHistory.sort((a: Analysis, b: Analysis) => a.lastModified - b.lastModified)[0]
             : null
     ), [analysisHistory])
 
+    const setActiveAnalysisKey = useCallback((key: string | null) => {
+        setActiveClusterId(null)
+        _setActiveAnalysisKey(key)
+    }, [_setActiveAnalysisKey])
+
     const loading = useMemo(() => analysisHistory === null, [analysisHistory])
+
+    const categoryColors = useRef<{ [category: string]: string }>({})
+    const categoryPalette = useRef(new Palette(chroma(cyan[3]), { mode: 'hex' }))
 
     const addHarmonizationField = useCallback((field: string) => {
         setHarmonizationFields([
@@ -106,7 +131,9 @@ export const AppProvider = ({ children }: any) => {
                 lastModified: Date.now()
             }
         ])
-        db.table("analyses").update(newAnalysis.id, newAnalysis)
+        db.table("analyses").update(newAnalysis.id, {
+            analysis: JSON.stringify(newAnalysis)
+        })
     }, [analysisHistory, setAnalysisHistory])
 
     const addAnalysis = useCallback((newAnalysis: Analysis) => {
@@ -147,11 +174,20 @@ export const AppProvider = ({ children }: any) => {
             ? Object.entries(analysis.communities).find(([id, alg]) => id === analysis.activeCommunityAlgorithm)![1]
             : null
     ), [analysis])
-    const setActiveCommunityAlgorithm = useCallback((id: string) => analysis ? updateAnalysis({
-        ...analysis,
-        activeCommunityAlgorithm: id
-    }) : {}, [analysis, updateAnalysis])
-    
+    const setActiveCommunityAlgorithm = useCallback((id: string) => {
+        if (analysis) {
+            setActiveClusterId(null)
+            updateAnalysis({
+                ...analysis,
+                activeCommunityAlgorithm: id
+            })
+        }
+    }, [analysis, updateAnalysis])
+    const activeCluster = useMemo<ClusterAnalysisNetwork|null>(() => (
+        activeClusterId
+            ? activeCommunityAlgorithm!.clusters.find((c) => c.id === activeClusterId)!
+            : null
+    ), [activeClusterId, activeCommunityAlgorithm])
 
     const getAnalysisCSVMetaData = (onOk: (form: AnalysisFileMetadata) => void, onCancel: () => void) => {
         let form: AnalysisFileMetadata
@@ -170,7 +206,7 @@ export const AppProvider = ({ children }: any) => {
                     <div style={{ marginBottom: 16 }}>Note: The default values should work for standard files.</div>
 
                     <AnalysisCSVMetadataForm
-                    onChange={ onChange }
+                        onChange={ onChange }
                     />
                 </div>
             ),
@@ -195,6 +231,36 @@ export const AppProvider = ({ children }: any) => {
         if (activeAnalysisKey === analysis.id) clearAnalysis()
         db.table("analyses").delete(analysis.id)
     }, [analysisHistory, activeAnalysisKey, clearAnalysis])
+
+    const updateHarmonizationDecision = useCallback((
+        clusterId: string,
+        sourceId: string,
+        targetId: string,
+        decision: HarmonizationDecision[] | null
+    ) => {
+        if (analysis && activeCommunityAlgorithm) {
+            // const cluster = activeCommunityAlgorithm.clusters.find((c) => c.id === clusterId)!
+            // const edge = cluster.edges.find((e) => e.source === sourceId && e.target === targetId)!
+            updateAnalysis({
+                ...analysis,
+                communities: {
+                    ...analysis.communities,
+                    [analysis.activeCommunityAlgorithm]: {
+                        ...activeCommunityAlgorithm,
+                        clusters: activeCommunityAlgorithm.clusters.map((cluster) => {
+                            if (cluster.id === clusterId) {
+                                cluster.edges = cluster.edges.map((e) => {
+                                    if (e.source === sourceId && e.target === targetId) e.decision = decision
+                                    return e
+                                })
+                            }
+                            return cluster
+                        })
+                    }
+                }
+            })
+        }
+    }, [analysis, activeCommunityAlgorithm, updateAnalysis])
 
     const backupDeleteWarning = useCallback((onOk: () => void) => {
         if (backupToDelete) {
@@ -230,7 +296,7 @@ export const AppProvider = ({ children }: any) => {
         })
         getAnalysisCSVMetaData(
             (metadata: AnalysisFileMetadata) => {
-                const { idField, listDelimiter, dictDelimiter } = metadata
+                const { nameField, idField, listDelimiter, dictDelimiter, transitiveMatches } = metadata
                 const analysisDict = cdeJson
                     .map((row) => {
                         row.categories = row.categories?.split(listDelimiter)
@@ -252,7 +318,26 @@ export const AppProvider = ({ children }: any) => {
                                 name: "Distinct subgraphs",
                                 description: "The subgraphs (connected components) of the network",
                                 reference: "https://en.wikipedia.org/wiki/Component_(graph_theory)",
-                                clusters: connectedComponents(network, idField)
+                                clusters: connectedComponents(network, idField).map((cluster) => {
+                                    if (transitiveMatches) {
+                                        cluster.edges = cluster.nodes.reduce<any>((acc, n1) => {
+                                            cluster.nodes.forEach((n2) => {
+                                                if (n1.id === n2.id) return
+                                                const exists = !!acc.find((e: any) => (
+                                                    (e.source === n1.id && e.target === n2.id) ||
+                                                    (e.source === n2.id && e.target === n1.id)
+                                                ))
+                                                if (!exists) acc.push({
+                                                    source: n1.id,
+                                                    target: n2.id,
+                                                    decision: null
+                                                })
+                                            })
+                                            return acc
+                                        }, [])
+                                    }
+                                    return cluster
+                                })
                             },
                             // fastWeightedNewman: {
                             //     name: "Fast Newman with Weights",
@@ -305,6 +390,10 @@ export const AppProvider = ({ children }: any) => {
         }
     }, [analysis, activeCommunityAlgorithm, graphData])
 
+    // useEffect(() => {
+    //     if (activeClusterId) zoomIntoCluster(activeClusterId)
+    // }, [activeClusterId])
+
     useEffect(() => {
         (async () => {
             /* @ts-ignore */
@@ -315,16 +404,21 @@ export const AppProvider = ({ children }: any) => {
 
     return (
         <AppContext.Provider value={{
-            harmonizationFields, addHarmonizationField, removeHarmonizationField,
+            harmonizationFields, setHarmonizationFields, addHarmonizationField, removeHarmonizationField,
 
             analysisHistory, analysis, setActiveAnalysisKey,
             
             graphData, networkRef,
 
+            categoryPalette, categoryColors,
+
             loading,
             
             loadAnalysisFile, clearAnalysis, downloadAnalysis, deleteAnalysis,
             activeCommunityAlgorithm, setActiveCommunityAlgorithm,
+            activeCluster, setActiveCluster: setActiveClusterId,
+
+            updateHarmonizationDecision,
 
             zoomIntoCluster
         }}>

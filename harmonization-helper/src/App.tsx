@@ -5,6 +5,7 @@ import { AppProvider } from './app-context';
 import { SidePanel } from './side-panel';
 import { NetworkGraph } from './network-graph';
 import { HarmonizationPanel } from './harmonization-panel';
+import { useLocalStorage } from './use-local-storage';
 import './App.css';
 import 'allotment/dist/style.css'
 import 'antd/dist/antd.css'
@@ -14,7 +15,7 @@ const { Header, Content, Sider } = Layout
 const { Pane } = Allotment
 
 function App() {
-  const [collapsed, setCollapsed] = useState<boolean>(false)
+  const [collapsed, setCollapsed] = useLocalStorage('side-panel-collapsed', false)
 
   return (
     <div className="App" style={{ display: 'flex', flexDirection: 'column' }}>

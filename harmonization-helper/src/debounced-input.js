@@ -6,13 +6,16 @@ import { useDebounce } from 'use-debounce'
 export const DebouncedInput = ({
     debounce=200,
     inputProps={},
+    defaultValue="",
     setValue: setOuterSearch
 }) => {
-    const [_search, setSearch] = useState("")
+    const [_search, setSearch] = useState(defaultValue)
     const [search] = useDebounce(_search, debounce)
+
     useEffect(() => {
         setOuterSearch(search)
     }, [search])
+    
     return (
         <Input
             style={{ width: "auto" }}

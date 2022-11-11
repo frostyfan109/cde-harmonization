@@ -391,9 +391,9 @@ export const AppProvider = ({ children }: any) => {
         }
     }, [analysis, activeCommunityAlgorithm, graphData])
 
-    // useEffect(() => {
-    //     if (activeClusterId) zoomIntoCluster(activeClusterId)
-    // }, [activeClusterId])
+    useEffect(() => {
+        if (activeClusterId) zoomIntoCluster(activeClusterId)
+    }, [activeClusterId, zoomIntoCluster])
 
     useEffect(() => {
         (async () => {

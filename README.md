@@ -1,6 +1,4 @@
 # CDE Harmonization Tools
-
-## Purpose
 Tools to aid in the harmonization effort of RADx data elements.
 
 This project consists of two components: tooling for finding potentially harmonizable elements and a webapp for reviewing these findings.  

@@ -385,8 +385,9 @@ export const AppProvider = ({ children }: any) => {
             const nodes = graphData.nodes.filter((n) => nodeIds.includes(n[idField]))
             const x = nodes.reduce((acc, cur) => acc + cur.x, 0) / nodes.length
             const y = nodes.reduce((acc, cur) => acc + cur.y, 0) / nodes.length
-            networkRef.current.centerAt(x, y, 500)
-            networkRef.current.zoom(5, 500)
+            // networkRef.current.centerAt(x, y, 500)
+            // networkRef.current.zoom(5, 500)
+            networkRef.current.zoomToFit(500, 256, (node: any) => nodeIds.includes(node[idField]))
         }
     }, [analysis, activeCommunityAlgorithm, graphData])
 

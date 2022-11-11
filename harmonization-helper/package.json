@@ -1,6 +1,7 @@
 {
   "name": "harmonization-helper",
   "version": "0.1.0",
+  "homepage": "https://frostyfan109.github.io/cde-harmonization",
   "private": true,
   "dependencies": {
     "@ant-design/pro-components": "^2.3.29",
@@ -39,6 +40,8 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -63,6 +66,7 @@
     ]
   },
   "devDependencies": {
-    "@types/papaparse": "^5.3.5"
+    "@types/papaparse": "^5.3.5",
+    "gh-pages": "^4.0.0"
   }
 }

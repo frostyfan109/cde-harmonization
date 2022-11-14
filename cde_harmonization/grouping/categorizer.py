@@ -48,7 +48,10 @@ class Categorizer(ABC):
                 categories = list(set([
                     self.normalize(category) for category in self.categorize_field(field)
                 ]))
+                categories = [category for category in categories if category != ""]
                 field[category_field_name] = categories
+                if len(categories) == 0:
+                    self.logger.error(f"[{i + 1}/{len(rows)}] No categories found for field")
                 self.logger.debug(f"[{i + 1}/{len(rows)}] Categorized field under {categories}")
             except Exception as exc:
                 errors.append((field, exc))

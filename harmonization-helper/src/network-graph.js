@@ -16,7 +16,11 @@ const SettingsButton = ({ onClick }) => {
 }
 
 export const NetworkGraph = ({ }) => {
-    const { analysis, activeCommunityAlgorithm, activeCluster, graphData, networkRef, harmonizationFields: displayFields, setHarmonizationFields } = useApp()
+    const {
+        analysis, activeCommunityAlgorithm, activeCluster,
+        graphData, networkRef, harmonizationFields: displayFields, setHarmonizationFields,
+        highlightNodes
+    } = useApp()
     const [showSettingsModal, setShowSettingsModal] = useState(false)
 
     const allFields = useMemo(() => analysis ? analysis.network.nodes.reduce((acc, node) => {
@@ -54,6 +58,13 @@ export const NetworkGraph = ({ }) => {
         nodeAutoColorBy: (node) => nodeAutoColorMap[node[idField]],
         nodeCanvasObjectMode: () => "after",
         nodeCanvasObject: (node, ctx, globalScale) => {
+            if (highlightNodes.has(node[idField])) {
+                ctx.beginPath()
+                ctx.arc(node.x, node.y, 4, 0, Math.PI * 2, false)
+                ctx.fillStyle = "red"
+                ctx.fill()
+            }
+
             if (globalScale < 1) return
             const opacity = lerp(0, 0.85, Math.min(minMaxNorm(globalScale, 1, 2), 1))
             // if (!activeCluster?.nodes.find((n) => n.id === node[idField])) return
@@ -100,9 +111,9 @@ export const NetworkGraph = ({ }) => {
         linkWidth: 1,
         minZoom: 0.125,
         maxZoom: 50,
+        autoPauseRedraw: false,
         ref: networkRef
     }), [ graphData, idField, nameField, nodeAutoColorMap, displayFields ])
-
     return (
         <div className="network-container" style={{
             display: "flex",

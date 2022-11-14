@@ -19,6 +19,12 @@
 .harmonization-panel .cluster-harmonization-list .ant-pro-list-row-title {
     margin-right: 0;
 }
+.harmonization-panel .cluster-harmonization-list .ant-pro-list-row-title > span {
+    font-size: 16px !important;
+    /* font-weight: 600 !important; */
+    /* color: #1890ff; */
+    text-decoration: underline;
+}
 .harmonization-panel .cluster-harmonization-list .ant-pro-list-row-description {
     margin-top: -12px;
 }

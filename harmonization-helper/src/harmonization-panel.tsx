@@ -48,7 +48,11 @@ const ClusterHarmonization = ({
     nextCluster: string | undefined
     onBack: () => void
 }) => {
-    const { analysis, categoryColors, categoryPalette, setActiveCluster, harmonizationFields, updateHarmonizationDecision } = useApp()
+    const {
+        analysis, categoryColors, categoryPalette,
+        setActiveCluster, harmonizationFields, updateHarmonizationDecision,
+        highlightEdge, unhighlightEdge
+    } = useApp()
 
     const cluster = useMemo(() => clusterToNetwork(_cluster, analysis!.network, analysis!.metadata.idField), [_cluster, analysis])
 
@@ -186,6 +190,16 @@ const ClusterHarmonization = ({
                             )
                         }
                     }}
+                    onItem={ ({ edge, source, target }) => ({
+                        onMouseEnter: () => {
+                            highlightEdge(edge)
+                        },
+                        onMouseLeave: () => {
+                            unhighlightEdge(edge)
+                        },
+                        onClick: () => {
+                        }
+                    }) }
                     locale={{
                         emptyText: <Empty description="No data" />
                     }}

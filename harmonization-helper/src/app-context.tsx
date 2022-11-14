@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid'
 import chroma from 'chroma-js'
 import { useLocalStorage } from './use-local-storage'
 import { AnalysisCSVMetadataForm } from './csv-metadata-form'
-import { AnalysisDict, AnalysisNetwork, ClusterAnalysisNetwork, convertAnalysisDictToNetwork, HarmonizationDecision, InvalidAnalysisDictError } from './converter'
+import { AnalysisDict, AnalysisEdge, AnalysisNetwork, ClusterAnalysisNetwork, convertAnalysisDictToNetwork, HarmonizationDecision, InvalidAnalysisDictError } from './converter'
 import { db } from './db'
 import { connectedComponents, newmanCluster } from './algorithms'
 import { Palette, PastelPalette } from './palette'
@@ -83,6 +83,9 @@ export interface IAppContext {
     setActiveCluster: (id: string | null) => void
 
     zoomIntoCluster: (id: string) => void
+    highlightNodes: Set<string>
+    highlightEdge: (edge: AnalysisEdge) => void
+    unhighlightEdge: (edge: AnalysisEdge) => void
 }
 
 export const AppContext = createContext<IAppContext>({} as IAppContext)
@@ -99,6 +102,8 @@ export const AppProvider = ({ children }: any) => {
             ? analysisHistory.sort((a: Analysis, b: Analysis) => a.lastModified - b.lastModified)[0]
             : null
     ), [analysisHistory])
+
+    const highlightNodes = useRef<Set<string>>(new Set())
 
     const setActiveAnalysisKey = useCallback((key: string | null) => {
         setActiveClusterId(null)
@@ -378,7 +383,7 @@ export const AppProvider = ({ children }: any) => {
     }
 
     const zoomIntoCluster = useCallback((id: string) => {
-        if (analysis) {
+        if (analysis && networkRef.current) {
             const padding = 32
             const idField = analysis.metadata.idField
             const nodeIds = activeCommunityAlgorithm!.clusters.find((c) => c.id === id)!.nodes.map((n) => n.id)
@@ -390,6 +395,15 @@ export const AppProvider = ({ children }: any) => {
             networkRef.current.zoomToFit(500, 256, (node: any) => nodeIds.includes(node[idField]))
         }
     }, [analysis, activeCommunityAlgorithm, graphData])
+
+    const highlightEdge = useCallback((edge: AnalysisEdge) => {
+        highlightNodes.current.add(edge.source)
+        highlightNodes.current.add(edge.target)
+    }, [])
+    const unhighlightEdge = useCallback((edge: AnalysisEdge) => {
+        highlightNodes.current.delete(edge.source)
+        highlightNodes.current.delete(edge.target)
+    }, [])
 
     useEffect(() => {
         if (activeClusterId) zoomIntoCluster(activeClusterId)
@@ -421,7 +435,9 @@ export const AppProvider = ({ children }: any) => {
 
             updateHarmonizationDecision,
 
-            zoomIntoCluster
+            zoomIntoCluster,
+            highlightEdge, unhighlightEdge,
+            highlightNodes: highlightNodes.current
         }}>
             { children }
         </AppContext.Provider>

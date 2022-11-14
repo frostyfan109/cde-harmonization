@@ -101,7 +101,7 @@ export const NetworkGraph = ({ }) => {
         minZoom: 0.125,
         maxZoom: 50,
         ref: networkRef
-    }), [ graphData, activeCluster, idField, nameField, nodeAutoColorMap, displayFields ])
+    }), [ graphData, idField, nameField, nodeAutoColorMap, displayFields ])
 
     return (
         <div className="network-container" style={{

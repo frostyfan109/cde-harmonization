@@ -2,16 +2,17 @@ import argparse
 import logging
 import os
 import networkx as nx
-from utils import CDELoader
+from .utils import CDELoader
 
 def categorize(args):
-    from grouping.categorizer import SciGraphAnnotationCategorizer, RakeKeywordCategorizer, KeyBERTCategorizer
+    from .grouping.categorizer import SciGraphAnnotationCategorizer, RakeKeywordCategorizer, KeyBERTCategorizer
 
     cde_file = args.cde_file
     output_path = args.output_path
     fields = list(set(args.field)) if args.field is not None else ["description"]
     categorizer_name = args.categorizer
     score_threshold = args.score_threshold
+    workers = args.workers
     verbose = args.verbose
     quiet = args.quiet
 
@@ -29,7 +30,8 @@ def categorize(args):
 
     categorizer = None
     options = {
-        "score_threshold": score_threshold
+        "score_threshold": score_threshold,
+        **({"workers": workers} if workers is not None else {})
     }
     if categorizer_name == "scigraph":
         categorizer = SciGraphAnnotationCategorizer(fields, options)
@@ -42,7 +44,7 @@ def categorize(args):
     cde_loader.save(grouped_cde, output_path)
 
 def analyze(args):
-    from grouping.semantic_analyzer import USE4Analyzer
+    from .grouping.semantic_analyzer import USE4Analyzer
 
     cde_file = args.cde_file
     output_path = args.output_path
@@ -52,6 +54,7 @@ def analyze(args):
     similarity_threshold = args.similarity_threshold
     analyzer_name = args.analyzer
     id_field = args.id_field
+    workers = args.workers
     verbose = args.verbose
     quiet = args.quiet
 
@@ -72,12 +75,13 @@ def analyze(args):
     options = {
         "min_score": similarity_threshold,
         "grouping_method": grouping_method,
-        "id": id_field
+        "id": id_field,
+        **({"workers": workers} if workers is not None else {})
     }
     if analyzer_name == "use4":
         analyzer = USE4Analyzer(fields, options)
 
-    (highly_related_fields, pairing_network) = analyzer.analyze_cde(cde)
+    (highly_related_fields, pairing_network) = analyzer.analyze_cde__MP(cde)
     # Flatten groups
     ungrouped_related_fields = []
     with open(output_path, "w+") as f:
@@ -87,7 +91,6 @@ def analyze(args):
             ungrouped_related_fields += group
         cde_loader.save(ungrouped_related_fields, output_path)
     if output_gexf:
-        print(pairing_network)
         nx.write_gexf(
             pairing_network,
             # Output under the same path/name, but different extension (gexf)
@@ -127,6 +130,13 @@ def make_categorize_parser(parser):
         default=0,
         type=float,
         help="Minimum score of a category (varies by categorizer) required for a field to be marked with the category"
+    )
+    parser.add_argument(
+        "-w",
+        "--workers",
+        default=None,
+        type=int,
+        help="Number of worker processes to use. Uses the maximum available if unspecified."
     )
     logging_group = parser.add_mutually_exclusive_group()
     logging_group.add_argument(
@@ -202,6 +212,13 @@ def make_analyzer_parser(parser):
         default=0.5,
         type=float,
         help="Minimum semantic similarity of two CDE questions to be deemed significantly similar"
+    )
+    parser.add_argument(
+        "-w",
+        "--workers",
+        default=None,
+        type=int,
+        help="Number of worker processes to use. Uses the maximum available if unspecified."
     )
     logging_group = parser.add_mutually_exclusive_group()
     logging_group.add_argument(

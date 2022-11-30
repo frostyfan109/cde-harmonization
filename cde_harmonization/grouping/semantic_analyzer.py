@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow_hub as tfhub
 import numpy as np
 import networkx as nx
+import multiprocessing
 from scipy.spatial import distance
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple, Optional, NamedTuple
@@ -33,6 +34,7 @@ class SemanticAnalyzer(ABC):
             "grouping_method": "intersection",
             # Minimum score of similarity (scoring mechanism varies by implementation)
             "min_score": 0.5,
+            "workers": multiprocessing.cpu_count(),
             "id": "Digest (variable_name|source_file|source_directory)",
             **options
         }
@@ -175,6 +177,51 @@ class SemanticAnalyzer(ABC):
                 if similarity >= min_score:
                     fields_of_interest.append((field1, field2, similarity))
                 iteration += 1
+        return self.regroup_pairings(fields_of_interest)
+
+    def analyze_cde__MP(self, cde: CDE) -> List[Dict]:
+        num_workers = self.options["workers"]
+        min_score = self.options["min_score"]
+        fields_of_interest = []
+        groupings = self.find_groupings(cde)
+        self.logger.info(f"Running analysis on {len(groupings)} groupings using {num_workers} workers")
+        grouping_combinations_list = [list(itertools.combinations(g.fields, 2)) for g in groupings]
+        inputs = []
+        pool = multiprocessing.Pool(processes=num_workers)
+        for i, grouping_combinations in enumerate(grouping_combinations_list):
+            self.logger.debug(f"[{i + 1}/{len(grouping_combinations_list)}] Beginning analysis on grouping")
+            for (field1, field2) in grouping_combinations:
+                s1_data = [ field1[field] for field in self.fields if field1[field] != "" ]
+                s2_data = [ field2[field] for field in self.fields if field2[field] != "" ]
+                s1 = ". ".join(s1_data)
+                s2 = ". ".join(s2_data)
+                if (
+                    field1["source_directory"] == field2["source_directory"] or
+                    # This can occur when categorizations are generated on more columns than analysis is performed on
+                    len(s1_data) == 0 or len(s2_data) == 0
+                ):
+                    continue
+                inputs.append((field1, field2, s1, s2))
+        
+        results = pool.imap(self.semantic_similarity, [in_[2:4] for in_ in inputs])
+        i = 0
+        while True:
+            try:
+                similarity = next(results)
+                (field1, field2) = results[i]
+                self.logger.debug(
+                    f"({i + 1}/{len(groupings)}) " \
+                    f"[{i + 1}/{len(inputs)}] " \
+                    f"Scored CDE {field1['variable_name']} {field2['variable_name']} {similarity}{ ' (discarded)' if similarity < min_score else '' }"
+                )
+                if similarity >= min_score:
+                    fields_of_interest.append((field1, field2, similarity))
+            except StopIteration:
+                break
+            except Exception as exc:
+                self.logger.error(f"[{i + 1}/{len(inputs)}] Failed to analyze field")
+            finally:
+                i += 1
         return self.regroup_pairings(fields_of_interest)
 
 class USE4Analyzer(SemanticAnalyzer):

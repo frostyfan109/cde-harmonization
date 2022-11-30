@@ -2,6 +2,7 @@
 import logging
 import os
 import itertools
+import time
 import tensorflow as tf
 import tensorflow_hub as tfhub
 import numpy as np
@@ -142,44 +143,7 @@ class SemanticAnalyzer(ABC):
         return groupings
 
     def analyze_cde(self, cde: CDE) -> List[Dict]:
-        min_score = self.options["min_score"]
-        fields_of_interest = []
-        groupings = self.find_groupings(cde)
-        self.logger.info(f"Running analysis on {len(groupings)} groupings")
-        grouping_combinations_list = [list(itertools.combinations(g.fields, 2)) for g in groupings]
-        total_iterations = sum([len(c_list) for c_list in grouping_combinations_list])
-        iteration = 0
-        for i, grouping_combinations in enumerate(grouping_combinations_list):
-            self.logger.debug(f"[{i + 1}/{len(grouping_combinations_list)}] Beginning analysis on grouping")
-            for (field1, field2) in grouping_combinations:
-                s1_data = [ field1[field] for field in self.fields if field1[field] != "" ]
-                s2_data = [ field2[field] for field in self.fields if field2[field] != "" ]
-                s1 = ". ".join(s1_data)
-                s2 = ". ".join(s2_data)
-                if (
-                    field1["source_directory"] == field2["source_directory"] or
-                    # This can occur when categorizations are generated on more columns than analysis is performed on
-                    len(s1_data) == 0 or len(s2_data) == 0
-                ):
-                    self.logger.debug(
-                        f"({i + 1}/{len(groupings)}) " \
-                        f"[{iteration + 1}/{total_iterations}] " \
-                        "Skipping pairing from same data dictionary"
-                    )
-                    iteration += 1
-                    continue
-                similarity = self.semantic_similarity(s1, s2)
-                self.logger.debug(
-                    f"({i + 1}/{len(groupings)}) " \
-                    f"[{iteration + 1}/{total_iterations}] " \
-                    f"Scored CDE {field1['variable_name']} {field2['variable_name']} {similarity}{ ' (discarded)' if similarity < min_score else '' }"
-                )
-                if similarity >= min_score:
-                    fields_of_interest.append((field1, field2, similarity))
-                iteration += 1
-        return self.regroup_pairings(fields_of_interest)
-
-    def analyze_cde__MP(self, cde: CDE) -> List[Dict]:
+        start_time = time.time_ns()
         num_workers = self.options["workers"]
         min_score = self.options["min_score"]
         fields_of_interest = []
@@ -187,7 +151,8 @@ class SemanticAnalyzer(ABC):
         self.logger.info(f"Running analysis on {len(groupings)} groupings using {num_workers} workers")
         grouping_combinations_list = [list(itertools.combinations(g.fields, 2)) for g in groupings]
         inputs = []
-        pool = multiprocessing.Pool(processes=num_workers)
+        skipped_inputs = 0
+        pool = multiprocessing.pool.ThreadPool(processes=num_workers)
         for i, grouping_combinations in enumerate(grouping_combinations_list):
             self.logger.debug(f"[{i + 1}/{len(grouping_combinations_list)}] Beginning analysis on grouping")
             for (field1, field2) in grouping_combinations:
@@ -200,17 +165,17 @@ class SemanticAnalyzer(ABC):
                     # This can occur when categorizations are generated on more columns than analysis is performed on
                     len(s1_data) == 0 or len(s2_data) == 0
                 ):
+                    skipped_inputs += 1
                     continue
                 inputs.append((field1, field2, s1, s2))
-        
-        results = pool.imap(self.semantic_similarity, [in_[2:4] for in_ in inputs])
+        self.logger.debug(f"Skipping {skipped_inputs} pairings originating from same data dictionaries")
+        results = pool.imap(lambda args: self.semantic_similarity(*args), [in_[2:4] for in_ in inputs])
         i = 0
         while True:
             try:
                 similarity = next(results)
-                (field1, field2) = results[i]
+                (field1, field2, _, _) = inputs[i]
                 self.logger.debug(
-                    f"({i + 1}/{len(groupings)}) " \
                     f"[{i + 1}/{len(inputs)}] " \
                     f"Scored CDE {field1['variable_name']} {field2['variable_name']} {similarity}{ ' (discarded)' if similarity < min_score else '' }"
                 )
@@ -222,6 +187,7 @@ class SemanticAnalyzer(ABC):
                 self.logger.error(f"[{i + 1}/{len(inputs)}] Failed to analyze field")
             finally:
                 i += 1
+        self.logger.debug(f"CDE categorization completed in {(time.time_ns() - start_time) / 1E9:.2f} seconds")
         return self.regroup_pairings(fields_of_interest)
 
 class USE4Analyzer(SemanticAnalyzer):

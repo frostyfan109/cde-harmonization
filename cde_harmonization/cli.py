@@ -81,7 +81,7 @@ def analyze(args):
     if analyzer_name == "use4":
         analyzer = USE4Analyzer(fields, options)
 
-    (highly_related_fields, pairing_network) = analyzer.analyze_cde__MP(cde)
+    (highly_related_fields, pairing_network) = analyzer.analyze_cde(cde)
     # Flatten groups
     ungrouped_related_fields = []
     with open(output_path, "w+") as f:

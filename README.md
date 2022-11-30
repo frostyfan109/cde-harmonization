@@ -22,7 +22,7 @@ Generating groupings:
 ```bash
 source_file=data/generated/merged.csv
 grouping_file_path=generated/$(date +%F)-keybert-groupings.csv
-python3 cde_harmonization/cli.py categorize $source_file $grouping_file_path -v -f label -f description -c keybert
+python3 -m cde_harmonization categorize $source_file $grouping_file_path -v -f label -f description -c keybert
 ```
 To get all the options for grouping generation, run `python3 cde_harmonization/cli.py categorize -h`
 
@@ -30,6 +30,6 @@ Running analysis using the groupings:
 ```bash
 score_threshold=0.7
 analysis_file_path=generated/$(date +%F)-keybert-analysis-$score_threshold.csv
-python3.9 cde_harmonization/cli.py analyze $grouping_file_path $analysis_file_path -a use4 -g intersection -f label -f description -s $score_threshold -v
+python3 -m cde_harmonization analyze $grouping_file_path $analysis_file_path -a use4 -g intersection -f label -f description -s $score_threshold -v
 ```
 To get all the options for grouping generation, run `python3 cde_harmonization/cli.py analyze -h`
